@@ -10,8 +10,8 @@ spring:
       ddl-auto: update
   servlet:
     multipart:
-      max-file-size: 900MB
-      max-request-size: 900MB
+      max-file-size: 999MB
+      max-request-size: 999MB
   security:
     oauth2:
       client:
