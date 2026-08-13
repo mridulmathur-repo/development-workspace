@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Login or create account</title>
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<main class="card">
+    <h1>Welcome</h1>
+    <p>Choose an option below. You will enter your credentials securely on Google's sign-in page.</p>
+
+    <p class="error" th:if="${param.error != null && param.error[0] == 'account_not_found'}">
+        No account exists for that Google identity. Choose “Create account with Google” first.
+    </p>
+    <p class="success" th:if="${param.logout != null}">You have been logged out.</p>
+
+    <div class="actions">
+        <a class="button" href="/auth/google/login">Log in with Google</a>
+        <a class="button secondary" href="/auth/google/signup">Create account with Google</a>
+    </div>
+</main>
+</body>
+</html>

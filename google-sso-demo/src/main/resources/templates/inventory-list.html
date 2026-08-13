@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Inventory</title><link rel="stylesheet" href="/css/app.css"></head>
+<body class="dashboard-body">
+<header class="topbar"><a class="brand" href="/home">Inventory Hub</a><a class="nav-link" href="/home">← Home</a></header>
+<main class="dashboard">
+    <div class="page-heading"><div><p class="eyebrow">CATALOGUE</p><h1>Current inventory</h1></div><a class="button" th:if="${user.role.name() == 'ADMIN'}" href="/inventory/add">Add item</a></div>
+    <p class="success banner" th:if="${param.added != null}">Inventory item added successfully.</p>
+    <div class="table-shell">
+        <table>
+            <thead><tr><th>SKU</th><th>Product</th><th>Description</th><th>Quantity</th><th>Added by</th></tr></thead>
+            <tbody>
+            <tr th:each="item : ${items}"><td class="sku" th:text="${item.sku}"></td><td th:text="${item.name}"></td><td th:text="${item.description}"></td><td><span class="quantity" th:text="${item.quantity}"></span></td><td th:text="${item.createdBy}"></td></tr>
+            <tr th:if="${#lists.isEmpty(items)}"><td colspan="5" class="empty">No inventory has been added yet.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</main>
+</body></html>

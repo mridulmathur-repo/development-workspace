@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: local-file-upload-demo
+  servlet:
+    multipart:
+      max-file-size: 999MB
+      max-request-size: 999MB
+
+app:
+  storage:
+    # Override with the FILE_STORAGE_LOCATION environment variable.
+    location: ${FILE_STORAGE_LOCATION:./uploads}
+
+server:
+  port: 8081

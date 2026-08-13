@@ -1,0 +1,29 @@
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+
+# Java and Maven build output
+**/target/
+*.class
+
+# Local databases and application data
+**/data/
+**/uploads/
+*.mv.db
+*.trace.db
+
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+**/application-local.yml
+**/application-local.yaml
+**/application-local.properties
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: google-sso-demo
+  datasource:
+    url: jdbc:h2:file:./data/google-sso-demo
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+  servlet:
+    multipart:
+      max-file-size: 900MB
+      max-request-size: 900MB
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope: openid,profile,email
+        provider:
+          google:
+            # Always show Google's account chooser instead of silently reusing
+            # whichever Google account is already active in the browser.
+            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth?prompt=select_account
+
+server:
+  # Respect X-Forwarded-Proto/Host from the HTTPS gateway so Google receives
+  # the public HTTPS callback rather than http://localhost.
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      timeout: 30m
+      cookie:
+        http-only: true
+        same-site: lax
+        secure: ${SESSION_COOKIE_SECURE:false}
+
+app:
+  # Set this once to bootstrap the first administrator. Every other new user
+  # receives the INVENTORY_USER role by default.
+  bootstrap-admin-email: ${BOOTSTRAP_ADMIN_EMAIL:}
+  file-storage-location: ${FILE_STORAGE_LOCATION:./uploads}

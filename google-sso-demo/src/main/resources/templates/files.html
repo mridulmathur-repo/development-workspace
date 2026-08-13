@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>My files</title><link rel="stylesheet" href="/css/app.css"></head>
+<body class="dashboard-body">
+<header class="topbar"><a class="brand" href="/home">Inventory Hub</a><a class="nav-link" href="/home">&larr; Home</a></header>
+<main class="dashboard">
+    <div class="page-heading"><div><p class="eyebrow">SECURE STORAGE</p><h1 th:text="${user.role.name() == 'ADMIN' ? 'All uploaded files' : 'My files'}">My files</h1><p>Files are stored locally on the application computer.</p></div></div>
+    <p class="success banner" th:if="${message}" th:text="${message}"></p>
+    <p class="error banner" th:if="${error}" th:text="${error}"></p>
+
+    <section class="upload-panel">
+        <form method="post" action="/files" enctype="multipart/form-data" class="upload-form">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <label for="file">Choose a file (maximum 25 MB)</label>
+            <input id="file" name="file" type="file" required>
+            <button type="submit">Upload file</button>
+        </form>
+    </section>
+
+    <div class="table-shell"><table>
+        <thead><tr><th>File</th><th>Size</th><th th:if="${user.role.name() == 'ADMIN'}">Owner</th><th>Uploaded</th><th>Action</th></tr></thead>
+        <tbody>
+        <tr th:each="item : ${files}">
+            <td th:text="${item.originalName}"></td><td th:text="|${item.size} bytes|"></td>
+            <td th:if="${user.role.name() == 'ADMIN'}" th:text="${item.ownerEmail}"></td>
+            <td th:text="${item.uploadedAt}"></td><td><a class="nav-link" th:href="@{/files/{id}/download(id=${item.id})}">Download</a></td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(files)}"><td class="empty" th:colspan="${user.role.name() == 'ADMIN' ? 5 : 4}">No files have been uploaded yet.</td></tr>
+        </tbody>
+    </table></div>
+</main>
+</body></html>

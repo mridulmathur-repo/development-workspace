@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Local File Vault</title>
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<main class="shell">
+    <section class="hero">
+        <p class="eyebrow">LOCAL STORAGE</p>
+        <h1>File vault</h1>
+        <p>Upload a file from your browser and keep it on this computer.</p>
+    </section>
+
+    <p class="message success" th:if="${message}" th:text="${message}"></p>
+    <p class="message error" th:if="${error}" th:text="${error}"></p>
+
+    <section class="upload-card">
+        <form method="post" action="/files" enctype="multipart/form-data">
+            <label for="file">Choose a file</label>
+            <input id="file" name="file" type="file" required>
+            <button type="submit">Upload file</button>
+        </form>
+        <small>Maximum file size: 25 MB</small>
+    </section>
+
+    <section class="files-section">
+        <div class="section-heading">
+            <div><p class="eyebrow">SAVED FILES</p><h2>Your uploads</h2></div>
+            <span th:text="|${#lists.size(files)} file(s)|">0 files</span>
+        </div>
+        <div class="file-list">
+            <a class="file-row" th:each="file : ${files}"
+               th:href="@{/files/{name}(name=${file.storedName})}">
+                <span class="file-icon">↓</span>
+                <span><strong th:text="${file.displayName}">document.pdf</strong>
+                    <small th:text="|${file.size} bytes|">0 bytes</small></span>
+                <span class="download">Download</span>
+            </a>
+            <p class="empty" th:if="${#lists.isEmpty(files)}">No files have been uploaded yet.</p>
+        </div>
+    </section>
+
+    <p class="location">Files are stored at <code th:text="${storageLocation}"></code></p>
+</main>
+</body>
+</html>
