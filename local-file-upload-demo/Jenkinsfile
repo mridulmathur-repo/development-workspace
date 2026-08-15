@@ -35,7 +35,7 @@ pipeline {
                 powershell '''
                     & '.\\local-file-upload-demo\\scripts\\deploy-local.ps1' `
                         -SourceJar '.\\local-file-upload-demo\\target\\local-file-upload-demo-0.0.1-SNAPSHOT.jar' `
-                        -DeployRoot "${env.STAGING_DEPLOY_ROOT}"
+                        -DeployRoot "$env:STAGING_DEPLOY_ROOT"
                 '''
             }
         }
@@ -47,7 +47,7 @@ pipeline {
                     $lastError = $null
                     do {
                         try {
-                            $response = Invoke-WebRequest -UseBasicParsing -Uri "${env.STAGING_URL}" -TimeoutSec 5
+                            $response = Invoke-WebRequest -UseBasicParsing -Uri "$env:STAGING_URL" -TimeoutSec 5
                             if ($response.StatusCode -eq 200 -and $response.Content -match 'UP') {
                                 Write-Host 'Staging health check passed.'
                                 return
