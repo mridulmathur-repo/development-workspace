@@ -21,6 +21,7 @@ public class LocalFileStorageService {
     public LocalFileStorageService(StorageProperties properties) {
         this.root = properties.location().toAbsolutePath().normalize();
         try {
+            System.out.println("Test");
             Files.createDirectories(root);
         } catch (IOException ex) {
             throw new FileStorageException("Could not create upload directory: " + root, ex);
