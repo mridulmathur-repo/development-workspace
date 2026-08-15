@@ -16,11 +16,27 @@ $jarPath = Join-Path $deployRootPath 'file-upload-app.jar'
 $logPath = Join-Path $deployRootPath 'file-upload-app.log'
 $errorLogPath = Join-Path $deployRootPath 'file-upload-app-error.log'
 $applicationPort = 8082
+$nssm = 'C:\Tools\NSSM\nssm.exe'
+$serviceName = 'FileUpload-Staging'
 
 New-Item -ItemType Directory -Path $deployRootPath -Force | Out-Null
 New-Item -ItemType Directory -Path $uploadsPath -Force | Out-Null
 
-# Port 8082 is reserved for this staging application. Stop only its current listener.
+# Stop the Windows service first. This is independent from Jenkins, so the
+# deployment step can complete while NSSM keeps the application running.
+if (-not (Test-Path -LiteralPath $nssm)) {
+    throw "NSSM was not found at $nssm. Install and configure the staging service first."
+}
+
+$service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+if ($null -eq $service) {
+    throw "Windows service $serviceName was not found. Configure it with NSSM first."
+}
+
+& $nssm stop $serviceName | Out-Null
+
+# Port 8082 is reserved for this staging application. This also cleans up a
+# previous direct Jenkins launch left over from an interrupted deployment.
 $listeners = Get-NetTCPConnection -LocalPort $applicationPort -State Listen -ErrorAction SilentlyContinue |
     Select-Object -ExpandProperty OwningProcess -Unique
 foreach ($listenerPid in $listeners) {
@@ -29,16 +45,7 @@ foreach ($listenerPid in $listeners) {
 }
 
 Copy-Item -LiteralPath $sourceJarPath -Destination $jarPath -Force
-$java = (Get-Command java -ErrorAction Stop).Source
+& $nssm start $serviceName | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Could not start Windows service $serviceName." }
 
-# Launch through cmd.exe START so Java runs independently and Jenkins can finish its step.
-$env:FILE_STORAGE_LOCATION = $uploadsPath
-$env:SERVER_PORT = $applicationPort.ToString()
-$env:JENKINS_NODE_COOKIE = 'file-upload-staging-service'
-$command = "start `"FileUpload Staging`" /min `"$java`" -jar `"$jarPath`" 1>> `"$logPath`" 2>> `"$errorLogPath`""
-cmd.exe /c $command
-if ($LASTEXITCODE -ne 0) {
-    throw 'Could not start the staging application in the background.'
-}
-
-Write-Host "Started file-upload-app in the background. Uploads are stored in $uploadsPath"
+Write-Host "Restarted Windows service $serviceName. Uploads are stored in $uploadsPath"
