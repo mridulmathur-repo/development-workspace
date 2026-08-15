@@ -25,7 +25,8 @@ function Invoke-Nssm {
 }
 
 if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
-    Invoke-Nssm stop $serviceName
+    Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
     Invoke-Nssm remove $serviceName confirm
 }
 
