@@ -43,13 +43,23 @@ pipeline {
         stage('Verify Staging') {
             steps {
                 powershell '''
-                    Write-Host 'Waiting one minute for the staging application to start.'
-                    Start-Sleep -Seconds 60
-                    $response = Invoke-WebRequest -UseBasicParsing -Uri "$env:STAGING_URL" -TimeoutSec 10
-                    if ($response.StatusCode -ne 200 -or $response.Content -notmatch 'UP') {
-                        throw "Staging health check failed: HTTP $($response.StatusCode) $($response.Content)"
-                    }
-                    Write-Host 'Staging health check passed.'
+                    $deadline = (Get-Date).AddSeconds(60)
+                    $lastError = $null
+                    do {
+                        try {
+                            $response = Invoke-WebRequest -UseBasicParsing -Uri "$env:STAGING_URL" -TimeoutSec 5
+                            if ($response.StatusCode -eq 200 -and $response.Content -match 'UP') {
+                                Write-Host 'Staging health check passed.'
+                                return
+                            }
+                            $lastError = "HTTP $($response.StatusCode): $($response.Content)"
+                        } catch {
+                            $lastError = $_.Exception.Message
+                        }
+                        Write-Host "Staging is not ready yet: $lastError"
+                        Start-Sleep -Seconds 5
+                    } while ((Get-Date) -lt $deadline)
+                    throw "Staging health check did not become healthy within 60 seconds. Last result: $lastError"
                 '''
             }
         }
