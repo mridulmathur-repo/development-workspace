@@ -12,4 +12,13 @@ app:
     location: ${FILE_STORAGE_LOCATION:./uploads}
 
 server:
-  port: 8081
+  port: ${SERVER_PORT:8082}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
