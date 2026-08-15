@@ -16,6 +16,7 @@ $jarPath = Join-Path $deployRootPath 'file-upload-app.jar'
 $pidPath = Join-Path $deployRootPath 'file-upload-app.pid'
 $logPath = Join-Path $deployRootPath 'file-upload-app.log'
 $errorLogPath = Join-Path $deployRootPath 'file-upload-app-error.log'
+$applicationPort = 8082
 
 New-Item -ItemType Directory -Path $deployRootPath -Force | Out-Null
 New-Item -ItemType Directory -Path $uploadsPath -Force | Out-Null
@@ -31,12 +32,23 @@ if (Test-Path -LiteralPath $pidPath) {
     Remove-Item -LiteralPath $pidPath -Force
 }
 
+# A previously interrupted Jenkins deployment can leave an app listening even when
+# its PID file is no longer accurate. Port 8082 is reserved for this staging app.
+$listeners = Get-NetTCPConnection -LocalPort $applicationPort -State Listen -ErrorAction SilentlyContinue |
+    Select-Object -ExpandProperty OwningProcess -Unique
+foreach ($listenerPid in $listeners) {
+    Write-Host "Stopping previous process $listenerPid listening on port $applicationPort."
+    Stop-Process -Id $listenerPid -Force
+}
+
 Copy-Item -LiteralPath $sourceJarPath -Destination $jarPath -Force
 $java = (Get-Command java -ErrorAction Stop).Source
 
 # The child process inherits these variables; uploaded files stay outside Jenkins' workspace.
 $env:FILE_STORAGE_LOCATION = $uploadsPath
-$env:SERVER_PORT = '8082'
+$env:SERVER_PORT = $applicationPort.ToString()
+# Prevent Jenkins from keeping this long-running web server attached to the build.
+$env:JENKINS_NODE_COOKIE = 'file-upload-staging-service'
 
 $process = Start-Process -FilePath $java `
     -ArgumentList '-jar', $jarPath `
