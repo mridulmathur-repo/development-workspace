@@ -13,20 +13,20 @@ pipeline {
     stages {
         stage('Build and Regression Tests') {
             steps {
-                bat 'mvn clean verify'
+                bat 'mvn -f local-file-upload-demo/pom.xml clean verify'
             }
         }
 
         stage('Archive Application') {
             steps {
-                archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+                archiveArtifacts artifacts: 'local-file-upload-demo/target/*.jar', fingerprint: true
             }
         }
     }
 
     post {
         always {
-            junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
+            junit allowEmptyResults: true, testResults: 'local-file-upload-demo/target/surefire-reports/TEST-*.xml'
         }
         success {
             echo 'Build and regression tests completed successfully.'
