@@ -47,12 +47,12 @@ pipeline {
                     $lastError = $null
                     do {
                         try {
-                            $response = Invoke-WebRequest -UseBasicParsing -Uri "$env:STAGING_URL" -TimeoutSec 5
-                            if ($response.StatusCode -eq 200 -and $response.Content -match 'UP') {
+                            $response = Invoke-RestMethod -Uri "$env:STAGING_URL" -TimeoutSec 5
+                            if ($response.status -eq 'UP') {
                                 Write-Host 'Staging health check passed.'
                                 return
                             }
-                            $lastError = "HTTP $($response.StatusCode): $($response.Content)"
+                            $lastError = "Health endpoint returned status: $($response.status)"
                         } catch {
                             $lastError = $_.Exception.Message
                         }
