@@ -1,0 +1,38 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'Maven3'
+    }
+
+    triggers {
+        // Poll GitHub every five minutes and run only when new commits exist.
+        pollSCM('H/5 * * * *')
+    }
+
+    stages {
+        stage('Build and Regression Tests') {
+            steps {
+                bat 'mvn clean verify'
+            }
+        }
+
+        stage('Archive Application') {
+            steps {
+                archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+            }
+        }
+    }
+
+    post {
+        always {
+            junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
+        }
+        success {
+            echo 'Build and regression tests completed successfully.'
+        }
+        failure {
+            echo 'Build or regression tests failed. Deployment was not run.'
+        }
+    }
+}
