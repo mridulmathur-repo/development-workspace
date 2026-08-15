@@ -10,6 +10,13 @@ pipeline {
         pollSCM('H/5 * * * *')
     }
 
+    environment {
+        STAGING_DEPLOY_ROOT = 'C:\\Apps\\FileUpload'
+        STAGING_URL = 'http://localhost:8082/actuator/health'
+        // Set this to true only after EC2 SSH deployment is configured.
+        EC2_DEPLOY_ENABLED = 'false'
+    }
+
     stages {
         stage('Build and Regression Tests') {
             steps {
@@ -22,6 +29,57 @@ pipeline {
                 archiveArtifacts artifacts: 'local-file-upload-demo/target/*.jar', fingerprint: true
             }
         }
+
+        stage('Deploy to Staging') {
+            steps {
+                powershell '''
+                    & '.\\local-file-upload-demo\\scripts\\deploy-local.ps1' `
+                        -SourceJar '.\\local-file-upload-demo\\target\\local-file-upload-demo-0.0.1-SNAPSHOT.jar' `
+                        -DeployRoot "${env.STAGING_DEPLOY_ROOT}"
+                '''
+            }
+        }
+
+        stage('Verify Staging') {
+            steps {
+                powershell '''
+                    $deadline = (Get-Date).AddSeconds(60)
+                    $lastError = $null
+                    do {
+                        try {
+                            $response = Invoke-WebRequest -UseBasicParsing -Uri "${env.STAGING_URL}" -TimeoutSec 5
+                            if ($response.StatusCode -eq 200 -and $response.Content -match 'UP') {
+                                Write-Host 'Staging health check passed.'
+                                return
+                            }
+                            $lastError = "HTTP $($response.StatusCode): $($response.Content)"
+                        } catch {
+                            $lastError = $_.Exception.Message
+                        }
+                        Start-Sleep -Seconds 5
+                    } while ((Get-Date) -lt $deadline)
+                    throw "Staging health check did not become healthy within 60 seconds. Last result: $lastError"
+                '''
+            }
+        }
+
+        stage('Approve Production Deployment') {
+            when {
+                expression { env.EC2_DEPLOY_ENABLED == 'true' }
+            }
+            steps {
+                input message: 'Staging is healthy. Deploy this exact build to EC2 production?', ok: 'Deploy to EC2'
+            }
+        }
+
+        stage('Deploy to Production (EC2)') {
+            when {
+                expression { env.EC2_DEPLOY_ENABLED == 'true' }
+            }
+            steps {
+                error 'EC2 deployment is deliberately not configured yet. Add its SSH credentials and deployment commands before enabling EC2_DEPLOY_ENABLED.'
+            }
+        }
     }
 
     post {
@@ -29,10 +87,15 @@ pipeline {
             junit allowEmptyResults: true, testResults: 'local-file-upload-demo/target/surefire-reports/TEST-*.xml'
         }
         success {
-            echo 'Build and regression tests completed successfully.'
+            echo 'Build, regression tests, and staging verification completed successfully.'
         }
         failure {
             echo 'Build or regression tests failed. Deployment was not run.'
+            mail(
+                to: 'mridul.mathur84@gmail.com',
+                subject: "FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: "Build failed. Review the Jenkins console output: ${env.BUILD_URL}"
+            )
         }
     }
 }
