@@ -24,7 +24,12 @@ New-Item -ItemType Directory -Path $uploadsPath -Force | Out-Null
 
 # Jenkins must not directly own a long-running Java process. A scheduled task is
 # managed independently by Windows, so Jenkins can continue to the health check.
-& schtasks.exe /End /TN $taskName 2>$null
+$taskQuery = "schtasks /Query /TN `"$taskName`" >nul 2>nul"
+cmd.exe /c $taskQuery
+if ($LASTEXITCODE -eq 0) {
+    $taskEnd = "schtasks /End /TN `"$taskName`" >nul 2>nul"
+    cmd.exe /c $taskEnd
+}
 
 $deadline = (Get-Date).AddSeconds(20)
 while ((Get-NetTCPConnection -LocalPort $applicationPort -State Listen -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) {
