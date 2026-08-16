@@ -5,6 +5,14 @@ pipeline {
         maven 'Maven3'
     }
 
+    parameters {
+        booleanParam(
+            name: 'DEPLOY_TO_EC2',
+            defaultValue: false,
+            description: 'After successful staging, request approval to deploy this build to EC2 production.'
+        )
+    }
+
     triggers {
         // Poll GitHub every five minutes and run only when new commits exist.
         pollSCM('H/5 * * * *')
@@ -13,8 +21,8 @@ pipeline {
     environment {
         STAGING_DEPLOY_ROOT = 'C:\\Apps\\FileUpload'
         STAGING_URL = 'http://localhost:8082/actuator/health'
-        // Set this to true only after EC2 SSH deployment is configured.
-        EC2_DEPLOY_ENABLED = 'false'
+        PRODUCTION_HOST = '16.192.141.81'
+        PRODUCTION_URL = 'http://127.0.0.1:8082/actuator/health'
     }
 
     stages {
@@ -66,7 +74,7 @@ pipeline {
 
         stage('Approve Production Deployment') {
             when {
-                expression { env.EC2_DEPLOY_ENABLED == 'true' }
+                expression { params.DEPLOY_TO_EC2 }
             }
             steps {
                 input message: 'Staging is healthy. Deploy this exact build to EC2 production?', ok: 'Deploy to EC2'
@@ -75,10 +83,24 @@ pipeline {
 
         stage('Deploy to Production (EC2)') {
             when {
-                expression { env.EC2_DEPLOY_ENABLED == 'true' }
+                expression { params.DEPLOY_TO_EC2 }
             }
             steps {
-                error 'EC2 deployment is deliberately not configured yet. Add its SSH credentials and deployment commands before enabling EC2_DEPLOY_ENABLED.'
+                withCredentials([sshUserPrivateKey(
+                    credentialsId: 'ec2-deploy-key',
+                    keyFileVariable: 'EC2_SSH_KEY',
+                    usernameVariable: 'EC2_USER'
+                )]) {
+                    bat '''
+                        scp -o BatchMode=yes -o StrictHostKeyChecking=accept-new -i "%EC2_SSH_KEY%" ^
+                          local-file-upload-demo\target\local-file-upload-demo-0.0.1-SNAPSHOT.jar ^
+                          %EC2_USER%@%PRODUCTION_HOST%:/tmp/file-upload-app.jar
+
+                        ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -i "%EC2_SSH_KEY%" ^
+                          %EC2_USER%@%PRODUCTION_HOST% ^
+                          "mv /tmp/file-upload-app.jar /opt/file-upload/file-upload-app.jar && sudo systemctl restart file-upload && for i in {1..12}; do curl --fail --silent %PRODUCTION_URL% && exit 0; sleep 5; done; sudo journalctl -u file-upload -n 50 --no-pager; exit 1"
+                    '''
+                }
             }
         }
     }
