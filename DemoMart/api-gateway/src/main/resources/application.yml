@@ -1,0 +1,36 @@
+server:
+  port: ${SERVER_PORT:8090}
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: identity-service
+              uri: lb://identity-service
+              predicates:
+                - Path=/api/auth/**,/api/users/**
+            - id: catalog-service
+              uri: lb://catalog-service
+              predicates:
+                - Path=/api/phones/**
+            - id: order-service
+              uri: lb://order-service
+              predicates:
+                - Path=/api/orders/**
+
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8762/eureka/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway

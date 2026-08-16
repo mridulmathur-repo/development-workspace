@@ -1,0 +1,31 @@
+server:
+  port: ${SERVER_PORT:8091}
+
+spring:
+  application:
+    name: identity-service
+  datasource:
+    url: ${DB_URL:jdbc:h2:file:./data/identity;AUTO_SERVER=TRUE}
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+app:
+  jwt-secret: ${JWT_SECRET:demomart-local-secret-change-before-production-2026}
+  seed-demo-users: ${SEED_DEMO_USERS:true}
+
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8762/eureka/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
