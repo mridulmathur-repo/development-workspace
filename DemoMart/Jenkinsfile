@@ -6,6 +6,19 @@ pipeline {
         nodejs 'NodeJS22'
     }
 
+    parameters {
+        booleanParam(
+            name: 'DEPLOY_TO_EC2',
+            defaultValue: false,
+            description: 'After staging passes, request approval to deploy this exact build to EC2.'
+        )
+        string(
+            name: 'EC2_HOST',
+            defaultValue: '',
+            description: 'Current EC2 public IPv4 address or DNS name. Required only for production deployment.'
+        )
+    }
+
     options {
         disableConcurrentBuilds()
         timestamps()
@@ -37,10 +50,20 @@ pipeline {
             }
         }
 
+        stage('Prepare Production Bundle') {
+            steps {
+                powershell '''
+                    & '.\\DemoMart\\scripts\\prepare-production-bundle.ps1' `
+                        -SourceRoot '.\\DemoMart' `
+                        -BundleRoot '.\\DemoMart\\build\\production-bundle'
+                '''
+            }
+        }
+
         stage('Archive Artifacts') {
             steps {
                 archiveArtifacts(
-                    artifacts: 'DemoMart/*/target/*.jar,DemoMart/frontend/dist/**/*',
+                    artifacts: 'DemoMart/*/target/*.jar,DemoMart/frontend/dist/**/*,DemoMart/build/production-bundle/**/*',
                     fingerprint: true
                 )
             }
@@ -74,6 +97,108 @@ pipeline {
                 '''
             }
         }
+
+        stage('Approve Production Deployment') {
+            when {
+                expression { params.DEPLOY_TO_EC2 }
+            }
+            steps {
+                script {
+                    if (!params.EC2_HOST?.trim()) {
+                        error('EC2_HOST is required when DEPLOY_TO_EC2 is selected.')
+                    }
+                }
+                input(
+                    message: "Staging is healthy. Deploy build #${env.BUILD_NUMBER} to http://${params.EC2_HOST}/demomart/?",
+                    ok: 'Deploy to EC2'
+                )
+            }
+        }
+
+        stage('Deploy to Production (EC2)') {
+            when {
+                expression { params.DEPLOY_TO_EC2 }
+            }
+            steps {
+                withCredentials([
+                    sshUserPrivateKey(
+                        credentialsId: 'ec2-deploy-key',
+                        keyFileVariable: 'EC2_SSH_KEY',
+                        usernameVariable: 'EC2_USER'
+                    ),
+                    string(credentialsId: 'demomart-production-jwt-secret', variable: 'PRODUCTION_JWT_SECRET'),
+                    string(credentialsId: 'demomart-production-internal-key', variable: 'PRODUCTION_INTERNAL_KEY')
+                ]) {
+                    powershell '''
+                        $ErrorActionPreference = 'Stop'
+                        $hostName = $env:EC2_HOST.Trim()
+                        if ($hostName -notmatch '^[A-Za-z0-9.-]+$') {
+                            throw "EC2_HOST contains unsupported characters: $hostName"
+                        }
+                        if ($env:PRODUCTION_JWT_SECRET.Length -lt 32 -or $env:PRODUCTION_JWT_SECRET -match "[`r`n]") {
+                            throw 'demomart-production-jwt-secret must be a single-line value of at least 32 characters.'
+                        }
+                        if ($env:PRODUCTION_INTERNAL_KEY.Length -lt 32 -or $env:PRODUCTION_INTERNAL_KEY -match "[`r`n]") {
+                            throw 'demomart-production-internal-key must be a single-line value of at least 32 characters.'
+                        }
+
+                        $temporaryRoot = Join-Path $env:TEMP ("demomart-production-" + [guid]::NewGuid().ToString())
+                        $keyPath = Join-Path $temporaryRoot 'ec2-key.pem'
+                        $environmentPath = Join-Path $temporaryRoot 'demomart.env'
+                        $archivePath = Join-Path $temporaryRoot 'demomart-production.tar.gz'
+                        $bundleRoot = Join-Path $env:WORKSPACE 'DemoMart\\build\\production-bundle'
+                        $remoteRoot = "/tmp/demomart-$env:BUILD_NUMBER"
+                        $remoteArchive = "$remoteRoot.tar.gz"
+                        $remoteEnvironment = "$remoteRoot.env"
+
+                        try {
+                            New-Item -ItemType Directory -Path $temporaryRoot -Force | Out-Null
+                            Copy-Item -LiteralPath $env:EC2_SSH_KEY -Destination $keyPath -Force
+                            & icacls.exe $keyPath /inheritance:r | Out-Null
+                            & icacls.exe $keyPath /grant:r 'SYSTEM:(R)' | Out-Null
+                            if ($LASTEXITCODE -ne 0) {
+                                throw 'Could not secure the temporary EC2 SSH key.'
+                            }
+
+                            $utf8WithoutBom = [System.Text.UTF8Encoding]::new($false)
+                            $environmentContent = "JWT_SECRET=$env:PRODUCTION_JWT_SECRET`nINTERNAL_SERVICE_KEY=$env:PRODUCTION_INTERNAL_KEY`n"
+                            [System.IO.File]::WriteAllText($environmentPath, $environmentContent, $utf8WithoutBom)
+
+                            & tar.exe '-czf' $archivePath '-C' $bundleRoot '.'
+                            if ($LASTEXITCODE -ne 0) {
+                                throw 'Creating the DemoMart production archive failed.'
+                            }
+
+                            & scp.exe '-o' 'BatchMode=yes' '-o' 'StrictHostKeyChecking=accept-new' '-i' $keyPath `
+                                $archivePath "$($env:EC2_USER)@$hostName`:$remoteArchive"
+                            if ($LASTEXITCODE -ne 0) {
+                                throw 'Copying the DemoMart release archive to EC2 failed.'
+                            }
+                            & scp.exe '-o' 'BatchMode=yes' '-o' 'StrictHostKeyChecking=accept-new' '-i' $keyPath `
+                                $environmentPath "$($env:EC2_USER)@$hostName`:$remoteEnvironment"
+                            if ($LASTEXITCODE -ne 0) {
+                                throw 'Copying the protected DemoMart environment file to EC2 failed.'
+                            }
+
+                            $remoteCommand = "set -e; rm -rf '$remoteRoot'; mkdir -p '$remoteRoot'; tar -xzf '$remoteArchive' -C '$remoteRoot'; mv '$remoteEnvironment' '$remoteRoot/demomart.env'; chmod 600 '$remoteRoot/demomart.env'; sudo bash '$remoteRoot/scripts/deploy-ec2-production.sh' '$remoteRoot' '$env:BUILD_NUMBER'; rm -f '$remoteArchive'; rm -rf '$remoteRoot'"
+                            & ssh.exe '-o' 'BatchMode=yes' '-o' 'StrictHostKeyChecking=accept-new' '-i' $keyPath `
+                                "$($env:EC2_USER)@$hostName" $remoteCommand
+                            if ($LASTEXITCODE -ne 0) {
+                                throw 'DemoMart EC2 deployment or its internal health checks failed.'
+                            }
+
+                            & '.\\DemoMart\\scripts\\verify-production.ps1' `
+                                -BaseUrl "http://$hostName/demomart/"
+                        }
+                        finally {
+                            if (Test-Path -LiteralPath $temporaryRoot) {
+                                Remove-Item -LiteralPath $temporaryRoot -Recurse -Force
+                            }
+                        }
+                    '''
+                }
+            }
+        }
     }
 
     post {
@@ -82,7 +207,13 @@ pipeline {
                 testResults: 'DemoMart/**/target/surefire-reports/TEST-*.xml'
         }
         success {
-            echo 'DemoMart build, tests, local staging deployment, and health checks passed.'
+            script {
+                if (params.DEPLOY_TO_EC2) {
+                    echo "DemoMart build #${env.BUILD_NUMBER} passed staging and production deployment at http://${params.EC2_HOST}/demomart/."
+                } else {
+                    echo 'DemoMart build, tests, local staging deployment, and health checks passed.'
+                }
+            }
         }
         failure {
             echo 'DemoMart pipeline failed. Review the failed stage before attempting another deployment.'

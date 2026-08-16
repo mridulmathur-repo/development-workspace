@@ -1,0 +1,22 @@
+[Unit]
+Description=DemoMart API Gateway
+After=network-online.target demomart-registry.service
+Wants=network-online.target demomart-registry.service
+
+[Service]
+Type=simple
+User=demomart
+Group=demomart
+WorkingDirectory=/var/lib/demomart/gateway
+Environment=SERVER_PORT=8090
+Environment=EUREKA_URL=http://127.0.0.1:8762/eureka/
+ExecStart=/usr/bin/java -Xms32m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:+ExitOnOutOfMemoryError -jar /opt/demomart/current/api-gateway.jar
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

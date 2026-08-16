@@ -1,0 +1,21 @@
+[Unit]
+Description=DemoMart Eureka Service Registry
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=demomart
+Group=demomart
+WorkingDirectory=/var/lib/demomart/registry
+Environment=SERVER_PORT=8762
+ExecStart=/usr/bin/java -Xms32m -Xmx96m -XX:MaxMetaspaceSize=96m -XX:+ExitOnOutOfMemoryError -jar /opt/demomart/current/service-registry.jar
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
