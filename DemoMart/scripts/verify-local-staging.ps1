@@ -35,7 +35,7 @@ foreach ($check in $checks.GetEnumerator()) {
     }
 }
 
-$homeResponse = Invoke-WebRequest -Uri 'http://127.0.0.1:5174/' -TimeoutSec 10
+$homeResponse = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:5174/' -TimeoutSec 10
 if ($homeResponse.StatusCode -ne 200 -or $homeResponse.Content -notmatch 'DemoMart') {
     throw 'The frontend health endpoint passed, but the DemoMart home page did not load correctly.'
 }
