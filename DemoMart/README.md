@@ -79,6 +79,27 @@ Stop the Java services with:
 powershell -ExecutionPolicy Bypass -File .\scripts\stop-local.ps1
 ```
 
+## Jenkins local staging pipeline
+
+`Jenkinsfile` builds and tests all backend services, builds the React application, archives the deployable artifacts, deploys them to `C:\Apps\DemoMart`, and verifies every health endpoint. The deployed applications run as independent NSSM Windows services, so Jenkins can finish the job without owning the application processes.
+
+Jenkins prerequisites:
+
+- Maven installation named `Maven3`.
+- Jenkins NodeJS plugin and a Node.js installation named `NodeJS22`.
+- Secret-text credentials named `demomart-staging-jwt-secret` and `demomart-staging-internal-key`.
+- NSSM at `C:\Tools\NSSM\nssm.exe`.
+
+Configure the Pipeline job with:
+
+```text
+Repository: git@github.com:mridulmathur-repo/development-workspace.git
+Branch: */main
+Script path: DemoMart/Jenkinsfile
+```
+
+After a successful run, open `http://localhost:5174`. Persistent H2 data and service logs are stored below `C:\Apps\DemoMart`; a new deployment replaces application artifacts but preserves the database folders.
+
 ## Security configuration
 
 The identity service creates an eight-hour JWT after a successful password login. The gateway forwards it, and each business service independently checks the signature and role.
