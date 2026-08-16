@@ -91,14 +91,39 @@ pipeline {
                     keyFileVariable: 'EC2_SSH_KEY',
                     usernameVariable: 'EC2_USER'
                 )]) {
-                    bat '''
-                        scp -o BatchMode=yes -o StrictHostKeyChecking=accept-new -i "%EC2_SSH_KEY%" ^
-                          local-file-upload-demo/target/local-file-upload-demo-0.0.1-SNAPSHOT.jar ^
-                          %EC2_USER%@%PRODUCTION_HOST%:/tmp/file-upload-app.jar
+                    powershell '''
+                        # Windows OpenSSH refuses the credential plugin's temporary key because
+                        # its ACL allows the built-in Users group. Make a locked-down copy for
+                        # this deployment. Jenkins runs as LocalSystem on this machine.
+                        $keyPath = Join-Path $env:TEMP ("jenkins-ec2-" + [guid]::NewGuid().ToString() + ".pem")
+                        $jarPath = Join-Path $env:WORKSPACE 'local-file-upload-demo\\target\\local-file-upload-demo-0.0.1-SNAPSHOT.jar'
 
-                        ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -i "%EC2_SSH_KEY%" ^
-                          %EC2_USER%@%PRODUCTION_HOST% ^
-                          "mv /tmp/file-upload-app.jar /opt/file-upload/file-upload-app.jar && sudo systemctl restart file-upload && for i in {1..12}; do curl --fail --silent %PRODUCTION_URL% && exit 0; sleep 5; done; sudo journalctl -u file-upload -n 50 --no-pager; exit 1"
+                        try {
+                            Copy-Item -LiteralPath $env:EC2_SSH_KEY -Destination $keyPath -Force
+                            & icacls.exe $keyPath /inheritance:r | Out-Null
+                            & icacls.exe $keyPath /grant:r 'SYSTEM:(R)' | Out-Null
+                            if ($LASTEXITCODE -ne 0) {
+                                throw 'Could not secure the temporary EC2 SSH key.'
+                            }
+
+                            & scp.exe '-o' 'BatchMode=yes' '-o' 'StrictHostKeyChecking=accept-new' '-i' $keyPath `
+                                $jarPath "$($env:EC2_USER)@$($env:PRODUCTION_HOST):/tmp/file-upload-app.jar"
+                            if ($LASTEXITCODE -ne 0) {
+                                throw 'Copying the application JAR to EC2 failed. Production was not changed.'
+                            }
+
+                            $remoteCommand = "mv /tmp/file-upload-app.jar /opt/file-upload/file-upload-app.jar && sudo systemctl restart file-upload && for i in {1..12}; do curl --fail --silent $($env:PRODUCTION_URL) && exit 0; sleep 5; done; sudo journalctl -u file-upload -n 50 --no-pager; exit 1"
+                            & ssh.exe '-o' 'BatchMode=yes' '-o' 'StrictHostKeyChecking=accept-new' '-i' $keyPath `
+                                "$($env:EC2_USER)@$($env:PRODUCTION_HOST)" $remoteCommand
+                            if ($LASTEXITCODE -ne 0) {
+                                throw 'EC2 deployment or production health check failed.'
+                            }
+                        }
+                        finally {
+                            if (Test-Path -LiteralPath $keyPath) {
+                                Remove-Item -LiteralPath $keyPath -Force
+                            }
+                        }
                     '''
                 }
             }
