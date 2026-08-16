@@ -1,5 +1,7 @@
 export async function api(path, options = {}, token) {
-  const response = await fetch(`/api${path}`, {
+  // BASE_URL is ./ so API calls follow the page location:
+  // /api locally and /demomart/api when Nginx hosts the UI below /demomart/.
+  const response = await fetch(`${import.meta.env.BASE_URL}api${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',

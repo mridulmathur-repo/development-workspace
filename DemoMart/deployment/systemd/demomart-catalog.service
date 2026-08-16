@@ -1,0 +1,24 @@
+[Unit]
+Description=DemoMart Catalog Service
+After=network-online.target demomart-registry.service
+Wants=network-online.target demomart-registry.service
+
+[Service]
+Type=simple
+User=demomart
+Group=demomart
+WorkingDirectory=/var/lib/demomart/catalog
+EnvironmentFile=/etc/demomart/demomart.env
+Environment=SERVER_PORT=8092
+Environment=EUREKA_URL=http://127.0.0.1:8762/eureka/
+Environment="DB_URL=jdbc:h2:file:/var/lib/demomart/catalog/catalog;AUTO_SERVER=TRUE"
+ExecStart=/usr/bin/java -Xms32m -Xmx160m -XX:MaxMetaspaceSize=96m -XX:+ExitOnOutOfMemoryError -jar /opt/demomart/current/catalog-service.jar
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
