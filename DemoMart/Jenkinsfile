@@ -1,0 +1,96 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'Maven3'
+        nodejs 'NodeJS22'
+    }
+
+    options {
+        disableConcurrentBuilds()
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '15'))
+    }
+
+    triggers {
+        pollSCM('H/5 * * * *')
+    }
+
+    environment {
+        STAGING_DEPLOY_ROOT = 'C:\\Apps\\DemoMart'
+        NSSM_PATH = 'C:\\Tools\\NSSM\\nssm.exe'
+    }
+
+    stages {
+        stage('Backend Build and Tests') {
+            steps {
+                bat 'mvn -f DemoMart/pom.xml clean verify'
+            }
+        }
+
+        stage('Frontend Build') {
+            steps {
+                dir('DemoMart/frontend') {
+                    bat 'npm install --no-audit --no-fund'
+                    bat 'npm run build'
+                }
+            }
+        }
+
+        stage('Archive Artifacts') {
+            steps {
+                archiveArtifacts(
+                    artifacts: 'DemoMart/*/target/*.jar,DemoMart/frontend/dist/**/*',
+                    fingerprint: true
+                )
+            }
+        }
+
+        stage('Deploy to Local Staging') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'demomart-staging-jwt-secret', variable: 'JWT_SECRET'),
+                    string(credentialsId: 'demomart-staging-internal-key', variable: 'INTERNAL_SERVICE_KEY')
+                ]) {
+                    powershell '''
+                        $java = (Get-Command java.exe -ErrorAction Stop).Source
+                        $node = (Get-Command node.exe -ErrorAction Stop).Source
+
+                        & '.\\DemoMart\\scripts\\deploy-local-staging.ps1' `
+                            -SourceRoot '.\\DemoMart' `
+                            -DeployRoot "$env:STAGING_DEPLOY_ROOT" `
+                            -NssmPath "$env:NSSM_PATH" `
+                            -JavaExecutable $java `
+                            -NodeExecutable $node
+                    '''
+                }
+            }
+        }
+
+        stage('Verify Local Staging') {
+            steps {
+                powershell '''
+                    & '.\\DemoMart\\scripts\\verify-local-staging.ps1'
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            junit allowEmptyResults: true,
+                testResults: 'DemoMart/**/target/surefire-reports/TEST-*.xml'
+        }
+        success {
+            echo 'DemoMart build, tests, local staging deployment, and health checks passed.'
+        }
+        failure {
+            echo 'DemoMart pipeline failed. Review the failed stage before attempting another deployment.'
+            mail(
+                to: 'mridul.mathur84@gmail.com',
+                subject: "FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: "DemoMart pipeline failed. Review: ${env.BUILD_URL}"
+            )
+        }
+    }
+}
