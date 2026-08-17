@@ -1,10 +1,16 @@
 [CmdletBinding()]
 param(
-    [string]$EnvironmentFile = (Join-Path $PSScriptRoot '..\.env')
+    [string]$EnvironmentFile
 )
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+$EnvironmentFile = if ([string]::IsNullOrWhiteSpace($EnvironmentFile)) {
+    Join-Path $projectRoot '.env'
+}
+else {
+    $EnvironmentFile
+}
 $environmentPath = [System.IO.Path]::GetFullPath($EnvironmentFile)
 
 if (-not (Test-Path -LiteralPath $environmentPath -PathType Leaf)) {
@@ -22,4 +28,3 @@ try {
 finally {
     Pop-Location
 }
-

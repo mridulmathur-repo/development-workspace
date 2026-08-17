@@ -6,9 +6,15 @@ spring:
     name: service-registry
 
 eureka:
+  instance:
+    hostname: localhost
   client:
     register-with-eureka: false
     fetch-registry: false
+    service-url:
+      # A standalone Eureka server must point its peer list back to itself.
+      # Otherwise Eureka falls back to localhost:8761 and continually retries it.
+      defaultZone: http://${eureka.instance.hostname}:${server.port}/eureka/
   server:
     enable-self-preservation: false
 

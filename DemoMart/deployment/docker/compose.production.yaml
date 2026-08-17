@@ -48,13 +48,13 @@ services:
       DB_URL: jdbc:h2:file:/app/data/identity;AUTO_SERVER=TRUE
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       SEED_DEMO_USERS: "false"
-      JAVA_TOOL_OPTIONS: -Xms32m -Xmx160m -XX:MaxMetaspaceSize=96m -XX:+ExitOnOutOfMemoryError
+      JAVA_TOOL_OPTIONS: -Xms32m -Xmx128m -XX:MaxMetaspaceSize=160m -XX:+ExitOnOutOfMemoryError
     volumes:
       - /var/lib/demomart/identity:/app/data
     depends_on:
       service-registry:
         condition: service_healthy
-    mem_limit: 288m
+    mem_limit: 352m
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8091/actuator/health"]
       interval: 10s
@@ -76,13 +76,13 @@ services:
       DB_URL: jdbc:h2:file:/app/data/catalog;AUTO_SERVER=TRUE
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?INTERNAL_SERVICE_KEY is required}
-      JAVA_TOOL_OPTIONS: -Xms32m -Xmx160m -XX:MaxMetaspaceSize=96m -XX:+ExitOnOutOfMemoryError
+      JAVA_TOOL_OPTIONS: -Xms32m -Xmx128m -XX:MaxMetaspaceSize=160m -XX:+ExitOnOutOfMemoryError
     volumes:
       - /var/lib/demomart/catalog:/app/data
     depends_on:
       service-registry:
         condition: service_healthy
-    mem_limit: 288m
+    mem_limit: 352m
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8092/actuator/health"]
       interval: 10s
@@ -104,7 +104,7 @@ services:
       DB_URL: jdbc:h2:file:/app/data/orders;AUTO_SERVER=TRUE
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?INTERNAL_SERVICE_KEY is required}
-      JAVA_TOOL_OPTIONS: -Xms32m -Xmx160m -XX:MaxMetaspaceSize=96m -XX:+ExitOnOutOfMemoryError
+      JAVA_TOOL_OPTIONS: -Xms32m -Xmx128m -XX:MaxMetaspaceSize=160m -XX:+ExitOnOutOfMemoryError
     volumes:
       - /var/lib/demomart/orders:/app/data
     depends_on:
@@ -112,7 +112,7 @@ services:
         condition: service_healthy
       catalog-service:
         condition: service_healthy
-    mem_limit: 288m
+    mem_limit: 352m
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8093/actuator/health"]
       interval: 10s
@@ -131,7 +131,7 @@ services:
     environment:
       <<: *eureka-client
       SERVER_PORT: "8090"
-      JAVA_TOOL_OPTIONS: -Xms32m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:+ExitOnOutOfMemoryError
+      JAVA_TOOL_OPTIONS: -Xms32m -Xmx96m -XX:MaxMetaspaceSize=128m -XX:+ExitOnOutOfMemoryError
     depends_on:
       service-registry:
         condition: service_healthy
@@ -141,7 +141,7 @@ services:
         condition: service_healthy
       order-service:
         condition: service_healthy
-    mem_limit: 256m
+    mem_limit: 288m
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8090/actuator/health"]
       interval: 10s
@@ -180,4 +180,3 @@ services:
 networks:
   demomart:
     driver: bridge
-

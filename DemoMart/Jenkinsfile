@@ -40,8 +40,8 @@ pipeline {
     }
 
     environment {
-        STAGING_DEPLOY_ROOT = 'C:\\Apps\\DemoMart'
-        NSSM_PATH = 'C:\\Tools\\NSSM\\nssm.exe'
+        DOCKER_BIN = 'C:\\Users\\Lenovo\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin'
+        DOCKER_ENV_FILE = 'DemoMart\\.env.jenkins'
     }
 
     stages {
@@ -79,32 +79,57 @@ pipeline {
             }
         }
 
-        stage('Deploy to Local Staging') {
+        stage('Deploy and Verify Local Docker Staging') {
             steps {
                 withCredentials([
                     string(credentialsId: 'demomart-staging-jwt-secret', variable: 'JWT_SECRET'),
                     string(credentialsId: 'demomart-staging-internal-key', variable: 'INTERNAL_SERVICE_KEY')
                 ]) {
                     powershell '''
-                        $java = (Get-Command java.exe -ErrorAction Stop).Source
-                        $node = (Get-Command node.exe -ErrorAction Stop).Source
+                        $ErrorActionPreference = 'Stop'
+                        $env:Path = "$env:DOCKER_BIN;$env:Path"
+                        $env:COMPOSE_PARALLEL_LIMIT = '1'
+                        $environmentFile = Join-Path $env:WORKSPACE $env:DOCKER_ENV_FILE
 
-                        & '.\\DemoMart\\scripts\\deploy-local-staging.ps1' `
-                            -SourceRoot '.\\DemoMart' `
-                            -DeployRoot "$env:STAGING_DEPLOY_ROOT" `
-                            -NssmPath "$env:NSSM_PATH" `
-                            -JavaExecutable $java `
-                            -NodeExecutable $node
+                        try {
+                            @(
+                                "JWT_SECRET=$env:JWT_SECRET"
+                                "INTERNAL_SERVICE_KEY=$env:INTERNAL_SERVICE_KEY"
+                                'SEED_DEMO_USERS=true'
+                                'DEMOMART_HOST_PORT=5174'
+                                'EUREKA_HOST_PORT=8762'
+                                'IMAGE_TAG=staging'
+                            ) | Set-Content -LiteralPath $environmentFile -Encoding ascii
+
+                            & docker.exe version
+                            if ($LASTEXITCODE -ne 0) {
+                                throw 'Jenkins cannot connect to the Docker Desktop engine.'
+                            }
+                            & docker.exe compose version
+                            if ($LASTEXITCODE -ne 0) {
+                                throw 'Docker Compose is unavailable to Jenkins.'
+                            }
+
+                            & '.\\DemoMart\\scripts\\start-docker.ps1' `
+                                -EnvironmentFile $environmentFile
+                            & '.\\DemoMart\\scripts\\verify-docker-staging.ps1' `
+                                -EnvironmentFile $environmentFile `
+                                -TimeoutSeconds 420
+                        }
+                        catch {
+                            Write-Host 'Docker staging failed. Current containers:'
+                            & docker.exe compose --env-file $environmentFile ps -a
+                            Write-Host 'Recent container logs:'
+                            & docker.exe compose --env-file $environmentFile logs --no-color --tail 150
+                            throw
+                        }
+                        finally {
+                            if (Test-Path -LiteralPath $environmentFile) {
+                                Remove-Item -LiteralPath $environmentFile -Force
+                            }
+                        }
                     '''
                 }
-            }
-        }
-
-        stage('Verify Local Staging') {
-            steps {
-                powershell '''
-                    & '.\\DemoMart\\scripts\\verify-local-staging.ps1'
-                '''
             }
         }
 
@@ -209,7 +234,7 @@ pipeline {
                 if (params.DEPLOY_TO_EC2) {
                     echo "DemoMart build #${env.BUILD_NUMBER} passed staging and production deployment at http://${params.EC2_HOST}/demomart/."
                 } else {
-                    echo 'DemoMart build, tests, local staging deployment, and health checks passed.'
+                    echo 'DemoMart build, tests, Docker staging deployment, and container health checks passed.'
                 }
             }
         }
