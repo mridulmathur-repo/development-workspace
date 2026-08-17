@@ -1,0 +1,184 @@
+name: demomart
+
+x-java-service: &java-service
+  restart: unless-stopped
+  networks:
+    - demomart
+  security_opt:
+    - no-new-privileges:true
+  read_only: true
+  tmpfs:
+    - /tmp
+
+x-eureka-client: &eureka-client
+  EUREKA_URL: http://service-registry:8762/eureka/
+
+services:
+  service-registry:
+    <<: *java-service
+    image: demomart/service-registry:${IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: docker/java-service.Dockerfile
+      args:
+        SERVICE: service-registry
+    environment:
+      SERVER_PORT: "8762"
+      JAVA_TOOL_OPTIONS: -Xms32m -Xmx96m -XX:MaxMetaspaceSize=96m -XX:+ExitOnOutOfMemoryError
+    ports:
+      - "127.0.0.1:${EUREKA_HOST_PORT:-8762}:8762"
+    mem_limit: 224m
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8762/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 18
+
+  identity-service:
+    <<: *java-service
+    image: demomart/identity-service:${IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: docker/java-service.Dockerfile
+      args:
+        SERVICE: identity-service
+    environment:
+      <<: *eureka-client
+      SERVER_PORT: "8091"
+      DB_URL: jdbc:h2:file:/app/data/identity;AUTO_SERVER=TRUE
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in DemoMart/.env}
+      SEED_DEMO_USERS: ${SEED_DEMO_USERS:-true}
+      JAVA_TOOL_OPTIONS: -Xms32m -Xmx160m -XX:MaxMetaspaceSize=96m -XX:+ExitOnOutOfMemoryError
+    volumes:
+      - identity-data:/app/data
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    mem_limit: 288m
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8091/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 45s
+      retries: 18
+
+  catalog-service:
+    <<: *java-service
+    image: demomart/catalog-service:${IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: docker/java-service.Dockerfile
+      args:
+        SERVICE: catalog-service
+    environment:
+      <<: *eureka-client
+      SERVER_PORT: "8092"
+      DB_URL: jdbc:h2:file:/app/data/catalog;AUTO_SERVER=TRUE
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in DemoMart/.env}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in DemoMart/.env}
+      JAVA_TOOL_OPTIONS: -Xms32m -Xmx160m -XX:MaxMetaspaceSize=96m -XX:+ExitOnOutOfMemoryError
+    volumes:
+      - catalog-data:/app/data
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    mem_limit: 288m
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8092/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 45s
+      retries: 18
+
+  order-service:
+    <<: *java-service
+    image: demomart/order-service:${IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: docker/java-service.Dockerfile
+      args:
+        SERVICE: order-service
+    environment:
+      <<: *eureka-client
+      SERVER_PORT: "8093"
+      DB_URL: jdbc:h2:file:/app/data/orders;AUTO_SERVER=TRUE
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in DemoMart/.env}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in DemoMart/.env}
+      JAVA_TOOL_OPTIONS: -Xms32m -Xmx160m -XX:MaxMetaspaceSize=96m -XX:+ExitOnOutOfMemoryError
+    volumes:
+      - order-data:/app/data
+    depends_on:
+      service-registry:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+    mem_limit: 288m
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8093/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 45s
+      retries: 18
+
+  api-gateway:
+    <<: *java-service
+    image: demomart/api-gateway:${IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: docker/java-service.Dockerfile
+      args:
+        SERVICE: api-gateway
+    environment:
+      <<: *eureka-client
+      SERVER_PORT: "8090"
+      JAVA_TOOL_OPTIONS: -Xms32m -Xmx128m -XX:MaxMetaspaceSize=96m -XX:+ExitOnOutOfMemoryError
+    depends_on:
+      service-registry:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8090/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 18
+
+  frontend:
+    image: demomart/frontend:${IMAGE_TAG:-local}
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - demomart
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "127.0.0.1:${DEMOMART_HOST_PORT:-5174}:8080"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    mem_limit: 96m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 12
+
+networks:
+  demomart:
+    driver: bridge
+
+volumes:
+  identity-data:
+  catalog-data:
+  order-data:
+
