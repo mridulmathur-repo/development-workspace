@@ -28,6 +28,22 @@ if (-not (Test-Path -LiteralPath $environmentPath -PathType Leaf)) {
 if (-not (Get-Command docker.exe -ErrorAction SilentlyContinue)) {
     throw 'Docker was not found in PATH.'
 }
+$composeCommand = Get-Command docker-compose.exe -ErrorAction SilentlyContinue
+if (-not $composeCommand) {
+    $dockerCommand = Get-Command docker.exe -ErrorAction Stop
+    $dockerResources = Split-Path -Parent (Split-Path -Parent $dockerCommand.Source)
+    $composeCandidate = Join-Path $dockerResources 'cli-plugins\docker-compose.exe'
+    if (Test-Path -LiteralPath $composeCandidate -PathType Leaf) {
+        $composeCommand = Get-Item -LiteralPath $composeCandidate
+    }
+}
+if (-not $composeCommand) {
+    throw 'Docker Compose was not found in PATH or beside the Docker Desktop CLI.'
+}
+$composeExecutable = $composeCommand.Source
+if ([string]::IsNullOrWhiteSpace($composeExecutable)) {
+    $composeExecutable = $composeCommand.FullName
+}
 
 Push-Location $projectRoot
 try {
@@ -36,7 +52,7 @@ try {
         $unhealthy = @()
 
         foreach ($service in $services) {
-            $containerId = (& docker.exe compose --env-file $environmentPath ps -q $service).Trim()
+            $containerId = (& $composeExecutable --env-file $environmentPath ps -q $service).Trim()
             if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($containerId)) {
                 $unhealthy += "$service (not running)"
                 continue
@@ -70,7 +86,7 @@ try {
         throw 'The frontend container is healthy, but the DemoMart home page did not load correctly.'
     }
 
-    & docker.exe compose --env-file $environmentPath ps
+    & $composeExecutable --env-file $environmentPath ps
     Write-Host 'All six DemoMart Docker containers are healthy. Open http://localhost:5174'
 }
 finally {
