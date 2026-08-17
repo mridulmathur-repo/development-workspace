@@ -1,0 +1,11 @@
+.git
+.idea
+**/target
+build
+frontend/dist
+frontend/node_modules
+**/data
+*.log
+.env
+.env.*
+

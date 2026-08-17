@@ -19,10 +19,10 @@ if (Test-Path -LiteralPath $bundleRootPath) {
 
 $artifactRoot = Join-Path $bundleRootPath 'artifacts'
 $frontendTarget = Join-Path $bundleRootPath 'frontend-root\demomart'
-$systemdTarget = Join-Path $bundleRootPath 'systemd'
+$dockerTarget = Join-Path $bundleRootPath 'docker'
 $nginxTarget = Join-Path $bundleRootPath 'nginx'
 $scriptTarget = Join-Path $bundleRootPath 'scripts'
-New-Item -ItemType Directory -Path $artifactRoot, $frontendTarget, $systemdTarget, $nginxTarget, $scriptTarget -Force | Out-Null
+New-Item -ItemType Directory -Path $artifactRoot, $frontendTarget, $dockerTarget, $nginxTarget, $scriptTarget -Force | Out-Null
 
 $jars = [ordered]@{
     'service-registry\target\service-registry-0.0.1-SNAPSHOT.jar' = 'service-registry.jar'
@@ -46,7 +46,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $frontendDist 'index.html') -PathTyp
 }
 Copy-Item -Path (Join-Path $frontendDist '*') -Destination $frontendTarget -Recurse -Force
 
-Copy-Item -Path (Join-Path $sourceRootPath 'deployment\systemd\*.service') -Destination $systemdTarget -Force
+Copy-Item -Path (Join-Path $sourceRootPath 'deployment\docker\*') -Destination $dockerTarget -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $sourceRootPath 'deployment\nginx\demomart.conf') -Destination $nginxTarget -Force
 Copy-Item -LiteralPath (Join-Path $sourceRootPath 'scripts\deploy-ec2-production.sh') -Destination $scriptTarget -Force
 

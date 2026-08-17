@@ -17,6 +17,16 @@ pipeline {
             defaultValue: '',
             description: 'Current EC2 public IPv4 address or DNS name. Required only for production deployment.'
         )
+        string(
+            name: 'AWS_REGION',
+            defaultValue: 'eu-north-1',
+            description: 'AWS region containing the DemoMart production secret.'
+        )
+        string(
+            name: 'AWS_SECRET_ID',
+            defaultValue: 'demomart/production/application',
+            description: 'Secrets Manager name or ARN read by the EC2 instance role during deployment.'
+        )
     }
 
     options {
@@ -50,7 +60,7 @@ pipeline {
             }
         }
 
-        stage('Prepare Production Bundle') {
+        stage('Prepare Container Release Bundle') {
             steps {
                 powershell '''
                     & '.\\DemoMart\\scripts\\prepare-production-bundle.ps1' `
@@ -125,31 +135,29 @@ pipeline {
                         credentialsId: 'ec2-deploy-key',
                         keyFileVariable: 'EC2_SSH_KEY',
                         usernameVariable: 'EC2_USER'
-                    ),
-                    string(credentialsId: 'demomart-production-jwt-secret', variable: 'PRODUCTION_JWT_SECRET'),
-                    string(credentialsId: 'demomart-production-internal-key', variable: 'PRODUCTION_INTERNAL_KEY')
+                    )
                 ]) {
                     powershell '''
                         $ErrorActionPreference = 'Stop'
                         $hostName = $env:EC2_HOST.Trim()
+                        $awsRegion = $env:AWS_REGION.Trim()
+                        $secretId = $env:AWS_SECRET_ID.Trim()
                         if ($hostName -notmatch '^[A-Za-z0-9.-]+$') {
                             throw "EC2_HOST contains unsupported characters: $hostName"
                         }
-                        if ($env:PRODUCTION_JWT_SECRET.Length -lt 32 -or $env:PRODUCTION_JWT_SECRET -match "[`r`n]") {
-                            throw 'demomart-production-jwt-secret must be a single-line value of at least 32 characters.'
+                        if ($awsRegion -notmatch '^[a-z]{2}(-gov)?-[a-z]+-[0-9]+$') {
+                            throw "AWS_REGION is invalid: $awsRegion"
                         }
-                        if ($env:PRODUCTION_INTERNAL_KEY.Length -lt 32 -or $env:PRODUCTION_INTERNAL_KEY -match "[`r`n]") {
-                            throw 'demomart-production-internal-key must be a single-line value of at least 32 characters.'
+                        if ($secretId -notmatch '^[A-Za-z0-9:/_+=.@-]+$') {
+                            throw 'AWS_SECRET_ID contains unsupported characters.'
                         }
 
                         $temporaryRoot = Join-Path $env:TEMP ("demomart-production-" + [guid]::NewGuid().ToString())
                         $keyPath = Join-Path $temporaryRoot 'ec2-key.pem'
-                        $environmentPath = Join-Path $temporaryRoot 'demomart.env'
                         $archivePath = Join-Path $temporaryRoot 'demomart-production.tar.gz'
                         $bundleRoot = Join-Path $env:WORKSPACE 'DemoMart\\build\\production-bundle'
                         $remoteRoot = "/tmp/demomart-$env:BUILD_NUMBER"
                         $remoteArchive = "$remoteRoot.tar.gz"
-                        $remoteEnvironment = "$remoteRoot.env"
 
                         try {
                             New-Item -ItemType Directory -Path $temporaryRoot -Force | Out-Null
@@ -159,10 +167,6 @@ pipeline {
                             if ($LASTEXITCODE -ne 0) {
                                 throw 'Could not secure the temporary EC2 SSH key.'
                             }
-
-                            $utf8WithoutBom = [System.Text.UTF8Encoding]::new($false)
-                            $environmentContent = "JWT_SECRET=$env:PRODUCTION_JWT_SECRET`nINTERNAL_SERVICE_KEY=$env:PRODUCTION_INTERNAL_KEY`n"
-                            [System.IO.File]::WriteAllText($environmentPath, $environmentContent, $utf8WithoutBom)
 
                             & tar.exe '-czf' $archivePath '-C' $bundleRoot '.'
                             if ($LASTEXITCODE -ne 0) {
@@ -174,13 +178,7 @@ pipeline {
                             if ($LASTEXITCODE -ne 0) {
                                 throw 'Copying the DemoMart release archive to EC2 failed.'
                             }
-                            & scp.exe '-o' 'BatchMode=yes' '-o' 'StrictHostKeyChecking=accept-new' '-i' $keyPath `
-                                $environmentPath "$($env:EC2_USER)@$hostName`:$remoteEnvironment"
-                            if ($LASTEXITCODE -ne 0) {
-                                throw 'Copying the protected DemoMart environment file to EC2 failed.'
-                            }
-
-                            $remoteCommand = "set -e; rm -rf '$remoteRoot'; mkdir -p '$remoteRoot'; tar -xzf '$remoteArchive' -C '$remoteRoot'; mv '$remoteEnvironment' '$remoteRoot/demomart.env'; chmod 600 '$remoteRoot/demomart.env'; sudo bash '$remoteRoot/scripts/deploy-ec2-production.sh' '$remoteRoot' '$env:BUILD_NUMBER'; rm -f '$remoteArchive'; rm -rf '$remoteRoot'"
+                            $remoteCommand = "set -e; rm -rf '$remoteRoot'; mkdir -p '$remoteRoot'; tar -xzf '$remoteArchive' -C '$remoteRoot'; sudo bash '$remoteRoot/scripts/deploy-ec2-production.sh' '$remoteRoot' '$env:BUILD_NUMBER' '$awsRegion' '$secretId'; rm -f '$remoteArchive'; rm -rf '$remoteRoot'"
                             & ssh.exe '-o' 'BatchMode=yes' '-o' 'StrictHostKeyChecking=accept-new' '-i' $keyPath `
                                 "$($env:EC2_USER)@$hostName" $remoteCommand
                             if ($LASTEXITCODE -ne 0) {
