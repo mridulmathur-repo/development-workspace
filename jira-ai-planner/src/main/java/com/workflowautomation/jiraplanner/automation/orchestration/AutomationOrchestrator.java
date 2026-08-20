@@ -77,11 +77,8 @@ public class AutomationOrchestrator {
         if (humanRequired) {
             notifyHuman(execution);
         } else {
-            jira.syncAutomationPhase(execution.getEpicKey(), successful
-                    ? JiraGateway.AutomationPhase.TESTING : JiraGateway.AutomationPhase.DEVELOPMENT,
-                    execution.getBranchHeadCommit());
             jira.addAutomationComment(execution.getEpicKey(), successful
-                    ? "AI development completed at commit %s. Execution %s is ready for independent testing."
+                    ? "AI development completed Story-by-Story at commit %s. Execution %s is ready for independent testing."
                         .formatted(execution.getBranchHeadCommit(), execution.getId())
                     : "AI development failed. Execution %s will use automatic correction attempt %d."
                         .formatted(execution.getId(), execution.getAutomaticFixAttemptsInCycle()));

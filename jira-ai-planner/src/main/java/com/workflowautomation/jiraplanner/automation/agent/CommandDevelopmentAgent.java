@@ -38,12 +38,13 @@ public class CommandDevelopmentAgent implements DevelopmentAgent {
             if (blank(project.developmentCommand())) return failure("AUTOMATION_DEVELOPMENT_COMMAND is not configured");
             run(project.repositoryRoot(), "git checkout " + assignment.branchName());
             run(project.repositoryRoot(), "git pull --ff-only " + project.remote() + " " + assignment.branchName());
-            run(project.allowedDirectory(), project.developmentCommand());
+            runDevelopmentCommand(project.allowedDirectory(), project.developmentCommand(), assignment);
             String projectPath = project.repositoryRoot().relativize(project.allowedDirectory()).toString();
             String changed = run(project.repositoryRoot(), "git status --porcelain -- \"" + projectPath + "\"");
             if (changed.isBlank()) return failure("Development command produced no committed code changes");
             run(project.repositoryRoot(), "git add -- \"" + projectPath + "\"");
-            run(project.repositoryRoot(), "git commit -m \"AI development: " + assignment.epicKey() + "\"");
+            run(project.repositoryRoot(), "git commit -m \"" + assignment.storyKey() + " "
+                    + assignment.developmentTaskKey() + ": AI development\"");
             run(project.repositoryRoot(), "git push " + project.remote() + " HEAD:" + assignment.branchName());
             String sha = run(project.repositoryRoot(), "git rev-parse HEAD").trim();
             if (!blank(project.stagingDeployCommand())) run(project.allowedDirectory(), project.stagingDeployCommand());
@@ -81,8 +82,27 @@ public class CommandDevelopmentAgent implements DevelopmentAgent {
     }
 
     private String run(Path directory, String command) throws Exception {
-        Process process = new ProcessBuilder("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command)
-                .directory(directory.toFile()).redirectErrorStream(true).start();
+        return run(directory, command, null);
+    }
+
+    private String runDevelopmentCommand(Path directory, String command, AgentAssignment assignment) throws Exception {
+        return run(directory, command, assignment);
+    }
+
+    private String run(Path directory, String command, AgentAssignment assignment) throws Exception {
+        ProcessBuilder builder = new ProcessBuilder("powershell.exe", "-NoProfile", "-NonInteractive",
+                "-ExecutionPolicy", "Bypass", "-Command", command)
+                .directory(directory.toFile()).redirectErrorStream(true);
+        if (assignment != null) {
+            builder.environment().put("AI_EPIC_KEY", safe(assignment.epicKey()));
+            builder.environment().put("AI_STORY_KEY", safe(assignment.storyKey()));
+            builder.environment().put("AI_STORY_SUMMARY", safe(assignment.storySummary()));
+            builder.environment().put("AI_STORY_DESCRIPTION", safe(assignment.storyDescription()));
+            builder.environment().put("AI_DEVELOPMENT_TASK_KEY", safe(assignment.developmentTaskKey()));
+            builder.environment().put("AI_DEVELOPMENT_TASK_DESCRIPTION", safe(assignment.developmentTaskDescription()));
+            builder.environment().put("AI_ALLOWED_DIRECTORY", directory.toString());
+        }
+        Process process = builder.start();
         if (!process.waitFor(timeout.toSeconds(), TimeUnit.SECONDS)) { process.destroyForcibly(); throw new IOException("Command timed out: " + command); }
         String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         if (process.exitValue() != 0) throw new IOException("Command failed (" + process.exitValue() + "): " + output.substring(0, Math.min(1200, output.length())));
@@ -90,4 +110,5 @@ public class CommandDevelopmentAgent implements DevelopmentAgent {
     }
     private AgentOutcome failure(String message) { return new AgentOutcome(false, "", new FailureReport(FailureCategory.DEVELOPMENT, message, "Code changed, pushed and staging verified", message, "", "Inspect worker output and retry", "high")); }
     private boolean blank(String value) { return value == null || value.isBlank(); }
+    private String safe(String value) { return value == null ? "" : value; }
 }

@@ -25,11 +25,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Component
 public class JiraRestClient implements JiraGateway {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(JiraRestClient.class);
+    private static final Pattern SEQUENCE_LABEL = Pattern.compile("ai-(story|dev|test)-(\\d+)", Pattern.CASE_INSENSITIVE);
 
     private final JiraProperties properties;
     private final RestClient restClient;
@@ -175,6 +178,63 @@ public class JiraRestClient implements JiraGateway {
     }
 
     @Override
+    public List<DevelopmentWorkItem> findPendingDevelopmentWork(String epicKey) {
+        String source = sourceLabel(epicKey);
+        List<JiraIssueSnapshot> issues = findTrackedIssues(200).stream()
+                .filter(issue -> issue.labels().stream().anyMatch(source::equalsIgnoreCase))
+                .toList();
+        Map<Integer, JiraIssueSnapshot> stories = bySequence(issues, "story");
+        Map<Integer, JiraIssueSnapshot> developmentTasks = bySequence(issues, "dev");
+        Map<Integer, JiraIssueSnapshot> testingTasks = bySequence(issues, "test");
+        return stories.entrySet().stream()
+                .filter(entry -> isDevelopmentCandidate(entry.getValue()))
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> {
+                    int sequence = entry.getKey();
+                    JiraIssueSnapshot story = entry.getValue();
+                    JiraIssueSnapshot development = developmentTasks.get(sequence);
+                    JiraIssueSnapshot testing = testingTasks.get(sequence);
+                    if (development == null || testing == null) {
+                        throw new IllegalStateException("Story " + story.key() + " is missing its generated development or testing task");
+                    }
+                    return new DevelopmentWorkItem(sequence, story.key(), story.summary(), issueDescription(story.key()),
+                            development.key(), issueDescription(development.key()), testing.key());
+                }).toList();
+    }
+
+    @Override
+    public void startDevelopmentWork(DevelopmentWorkItem work) {
+        transitionToIfNeeded(work.storyKey(), properties.getDevelopmentStatus());
+        transitionToIfNeeded(work.developmentTaskKey(), properties.getDevelopmentStatus());
+        String comment = "AI development started for Story %s and Development Task %s."
+                .formatted(work.storyKey(), work.developmentTaskKey());
+        addComment(work.storyKey(), comment);
+        addComment(work.developmentTaskKey(), comment);
+    }
+
+    @Override
+    public void completeDevelopmentWork(DevelopmentWorkItem work, String commitSha) {
+        transitionToIfNeeded(work.developmentTaskKey(), properties.getCompletedStatus());
+        transitionToIfNeeded(work.storyKey(), properties.getTestingStatus());
+        transitionToIfNeeded(work.testingTaskKey(), properties.getTestingStatus());
+        String comment = "AI development completed. Story: %s. Development Task: %s. Commit: %s. Next phase: Testing."
+                .formatted(work.storyKey(), work.developmentTaskKey(), commitSha);
+        addComment(work.storyKey(), comment);
+        addComment(work.developmentTaskKey(), comment);
+        addComment(work.testingTaskKey(), comment);
+    }
+
+    @Override
+    public void failDevelopmentWork(DevelopmentWorkItem work, String failureReport) {
+        transitionToIfNeeded(work.storyKey(), properties.getHumanReviewStatus());
+        transitionToIfNeeded(work.developmentTaskKey(), properties.getHumanReviewStatus());
+        addComment(work.storyKey(), failureReport);
+        addComment(work.developmentTaskKey(), failureReport);
+        assignGatekeeper(work.storyKey());
+        assignGatekeeper(work.developmentTaskKey());
+    }
+
+    @Override
     public void syncAutomationPhase(String epicKey, AutomationPhase phase, String commitSha) {
         String targetStatus = switch (phase) {
             case DEVELOPMENT -> properties.getDevelopmentStatus();
@@ -216,6 +276,33 @@ public class JiraRestClient implements JiraGateway {
                         .build())
                 .retrieve()
                 .body(JsonNode.class);
+    }
+
+    private Map<Integer, JiraIssueSnapshot> bySequence(List<JiraIssueSnapshot> issues, String kind) {
+        Map<Integer, JiraIssueSnapshot> result = new LinkedHashMap<>();
+        for (JiraIssueSnapshot issue : issues) {
+            for (String label : issue.labels()) {
+                Matcher matcher = SEQUENCE_LABEL.matcher(label);
+                if (matcher.matches() && kind.equalsIgnoreCase(matcher.group(1))) {
+                    result.put(Integer.parseInt(matcher.group(2)), issue);
+                }
+            }
+        }
+        return result;
+    }
+
+    private boolean isDevelopmentCandidate(JiraIssueSnapshot issue) {
+        return "new".equalsIgnoreCase(issue.statusCategory())
+                || "to do".equalsIgnoreCase(issue.status())
+                || properties.getDevelopmentStatus().equalsIgnoreCase(issue.status());
+    }
+
+    private String issueDescription(String issueKey) {
+        JsonNode issue = restClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/rest/api/3/issue/{key}")
+                        .queryParam("fields", "description").build(issueKey))
+                .retrieve().body(JsonNode.class);
+        return documents.toPlainText(issue.path("fields").path("description"));
     }
 
     private Map<String, Object> baseFields(EpicRequirement epic, String summary, String issueType,
