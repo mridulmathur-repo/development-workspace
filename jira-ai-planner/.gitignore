@@ -1,0 +1,6 @@
+.maven-repo/
+.env
+target/
+.idea/
+*.iml
+data/

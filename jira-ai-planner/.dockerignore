@@ -1,0 +1,8 @@
+target/classes
+target/test-classes
+.maven-repo
+ui/node_modules
+ui/dist
+.env
+.idea
+*.iml

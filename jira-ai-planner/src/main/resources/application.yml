@@ -1,0 +1,79 @@
+spring:
+  application:
+    name: jira-ai-planner
+  web:
+    resources:
+      static-locations: classpath:/META-INF/resources/,classpath:/resources/,classpath:/static/,classpath:/public/,file:${DASHBOARD_UI_PATH:./ui/}
+  datasource:
+    url: jdbc:h2:file:${AUTOMATION_DATA_PATH:./data/automation};DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+
+server:
+  port: ${SERVER_PORT:8100}
+  address: ${SERVER_ADDRESS:127.0.0.1}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+ai:
+  base-url: ${AI_BASE_URL:https://api.groq.com/openai/v1}
+  api-key: ${AI_API_KEY:}
+  model: ${AI_MODEL:openai/gpt-oss-120b}
+  max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:5000}
+  temperature: ${AI_TEMPERATURE:0.1}
+
+jira:
+  base-url: ${JIRA_BASE_URL:}
+  email: ${JIRA_EMAIL:}
+  api-token: ${JIRA_API_TOKEN:}
+  project-key: ${JIRA_PROJECT_KEY:}
+  ready-status: ${JIRA_READY_STATUS:Ready for AI Planning}
+  human-review-status: ${JIRA_HUMAN_REVIEW_STATUS:Human Review Required}
+  human-gatekeeper-account-id: ${JIRA_HUMAN_GATEKEEPER_ACCOUNT_ID:}
+  epic-issue-type: ${JIRA_EPIC_ISSUE_TYPE:Epic}
+  story-issue-type: ${JIRA_STORY_ISSUE_TYPE:Story}
+  task-issue-type: ${JIRA_TASK_ISSUE_TYPE:Task}
+  development-status: ${JIRA_DEVELOPMENT_STATUS:In Development}
+  testing-status: ${JIRA_TESTING_STATUS:In Testing}
+  staging-status: ${JIRA_STAGING_STATUS:Ready for Staging}
+  completed-status: ${JIRA_COMPLETED_STATUS:Done}
+
+planner:
+  scheduler-enabled: ${PLANNER_SCHEDULER_ENABLED:false}
+  poll-delay-milliseconds: ${PLANNER_POLL_DELAY_MILLISECONDS:60000}
+  max-epics-per-run: ${PLANNER_MAX_EPICS_PER_RUN:5}
+  max-generation-retries: ${MAX_AUTO_FIX_ATTEMPTS:1}
+
+automation:
+  enabled: ${AUTOMATION_ENABLED:false}
+  worker-mode: ${AUTOMATION_WORKER_MODE:dry-run}
+  control-token: ${AUTOMATION_CONTROL_TOKEN:}
+  max-automatic-fix-attempts: ${MAX_DEVELOPMENT_FIX_ATTEMPTS:1}
+  git-command-timeout-seconds: ${AUTOMATION_GIT_TIMEOUT_SECONDS:60}
+  projects:
+    - jira-project-key: ${AUTOMATION_PROJECT_KEY:}
+      repository-root: ${AUTOMATION_REPOSITORY_ROOT:}
+      allowed-directory: ${AUTOMATION_ALLOWED_DIRECTORY:}
+      base-branch: ${AUTOMATION_BASE_BRANCH:main}
+      remote: ${AUTOMATION_GIT_REMOTE:origin}
+      branch-prefix: ${AUTOMATION_BRANCH_PREFIX:ai/epic-}
+      staging-jenkins-job: ${AUTOMATION_STAGING_JOB:}
+      development-command: ${AUTOMATION_DEVELOPMENT_COMMAND:}
+      staging-deploy-command: ${AUTOMATION_STAGING_DEPLOY_COMMAND:}
+      staging-health-url: ${AUTOMATION_STAGING_HEALTH_URL:}
+
+dashboard:
+  max-issues: ${DASHBOARD_MAX_ISSUES:200}
+  stuck-after-minutes: ${DASHBOARD_STUCK_AFTER_MINUTES:60}

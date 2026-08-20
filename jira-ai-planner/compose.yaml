@@ -1,0 +1,23 @@
+services:
+  jira-ai-planner:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      AUTOMATION_REPOSITORY_ROOT: /workspace
+      GIT_SSH_COMMAND: ssh -i /app/data/ssh/github-deploy-key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/app/data/ssh/known_hosts
+    ports:
+      - "127.0.0.1:8100:8100"
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - planner-data:/app/data
+      - ${AUTOMATION_HOST_REPOSITORY_ROOT:-..}:/workspace
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  planner-data:
