@@ -1,7 +1,6 @@
 package com.workflowautomation.jiraplanner.automation.pipeline;
 
 import com.workflowautomation.jiraplanner.automation.execution.AutomationExecutionRepository;
-import com.workflowautomation.jiraplanner.automation.execution.ExecutionPhase;
 import com.workflowautomation.jiraplanner.automation.execution.ExecutionStatus;
 import com.workflowautomation.jiraplanner.config.AutomationProperties;
 import org.slf4j.Logger;
@@ -26,7 +25,7 @@ public class DevelopmentPipelineScheduler {
     @Scheduled(fixedDelayString = "${automation.development-poll-delay-milliseconds:300000}")
     public void poll() {
         if (!properties.isEnabled() || !properties.isDevelopmentPollerEnabled()) return;
-        executions.findByExecutionStatusAndPhase(ExecutionStatus.ACTIVE, ExecutionPhase.DEVELOPMENT)
+        executions.findByExecutionStatus(ExecutionStatus.ACTIVE)
                 .forEach(execution -> {
                     try {
                         DevelopmentPipelineStatus result = pipelines.trigger(execution.getId());

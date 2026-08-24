@@ -62,10 +62,10 @@ main { padding: 30px 34px 60px; max-width: 1800px; margin: 0 auto; }
 input,select { color:#eaf2f9; background:#091827; border:1px solid var(--border); border-radius:10px; outline:none; padding:10px 12px; }
 input:focus,select:focus { border-color:rgba(35,199,217,.65); box-shadow:0 0 0 3px rgba(35,199,217,.08); }
 .filterbar input { flex:1; }.filterbar select { min-width:150px; }
-.board-scroll { overflow-x:auto; }.board { display:grid; grid-template-columns:repeat(6,minmax(190px,1fr)); min-width:1140px; min-height:525px; }
+.board-scroll { overflow-x:auto; }.board { display:grid; grid-template-columns:repeat(7,minmax(190px,1fr)); min-width:1330px; min-height:525px; }
 .board-column { border-right:1px solid var(--border); }.board-column:last-child { border-right:0; }
 .column-head { height:47px; padding:0 12px; display:flex; align-items:center; gap:7px; border-bottom:1px solid var(--border); color:#b9c8d7; font-size:11px; text-transform:uppercase; letter-spacing:.7px; }
-.column-head em { margin-left:auto; font-style:normal; color:var(--muted); }.stage-dot { width:7px;height:7px;border-radius:50%;background:#6f8499 }.stage-dot.development{background:var(--cyan)}.stage-dot.testing{background:var(--amber)}.stage-dot.staging{background:var(--violet)}.stage-dot.human_review{background:var(--red)}.stage-dot.completed{background:var(--green)}
+.column-head em { margin-left:auto; font-style:normal; color:var(--muted); }.stage-dot { width:7px;height:7px;border-radius:50%;background:#6f8499 }.stage-dot.ready_development{background:var(--blue)}.stage-dot.development{background:var(--cyan)}.stage-dot.testing{background:var(--amber)}.stage-dot.staging{background:var(--violet)}.stage-dot.human_review{background:var(--red)}.stage-dot.completed{background:var(--green)}
 .column-body { padding:10px; display:flex; flex-direction:column; gap:9px; }
 .column-empty { padding:28px 6px; text-align:center; color:#536a80; font-size:11px; }
 .work-card { width:100%; text-align:left; border:1px solid var(--border); background:#0d2033; border-radius:12px; padding:12px; cursor:pointer; transition:.18s ease; }

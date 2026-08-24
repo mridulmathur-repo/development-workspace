@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 const STAGES = [
-  ['READY', 'Ready'],
+  ['BACKLOG', 'Backlog'],
+  ['READY_DEVELOPMENT', 'Ready for development'],
   ['DEVELOPMENT', 'Development'],
   ['TESTING', 'Testing'],
   ['STAGING', 'Staging'],

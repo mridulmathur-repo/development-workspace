@@ -6,9 +6,9 @@ RUN npm ci
 COPY ui/ ./
 RUN npm run build
 
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:17-jdk-alpine
 
-RUN apk add --no-cache curl git openssh-client \
+RUN apk add --no-cache curl git openssh-client maven nodejs npm \
     && addgroup -S -g 10001 planner \
     && adduser -S -D -H -u 10001 -G planner planner \
     && mkdir -p /app/data \

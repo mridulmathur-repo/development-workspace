@@ -48,6 +48,8 @@ class DashboardServiceTest {
     @Test
     void classifiesDevelopmentTestingAndStuckWork() {
         when(jira.findTrackedIssues(200)).thenReturn(List.of(
+                issue("DMT-1", "Story", "Backlog story", "To Do", "new", 2, Set.of()),
+                issue("DMT-5", "Story", "Ready story", "Ready for Development", "new", 3, Set.of()),
                 issue("DMT-2", "Story", "Price range", "In Progress", "indeterminate", 5, Set.of()),
                 issue("DMT-3", "Task", "[AI][Testing] Price range", "In Progress", "indeterminate", 45,
                         Set.of("ai-test-01")),
@@ -56,9 +58,11 @@ class DashboardServiceTest {
 
         DashboardSnapshot snapshot = service.snapshot();
 
-        assertEquals(1, snapshot.counts().get("stories"));
+        assertEquals(3, snapshot.counts().get("stories"));
         assertEquals(2, snapshot.counts().get("tasks"));
         assertEquals(1, snapshot.counts().get("stuck"));
+        assertEquals(1, snapshot.stageCounts().get("BACKLOG"));
+        assertEquals(1, snapshot.stageCounts().get("READY_DEVELOPMENT"));
         assertEquals(1, snapshot.stageCounts().get("DEVELOPMENT"));
         assertEquals(1, snapshot.stageCounts().get("TESTING"));
         assertTrue(snapshot.issues().stream().filter(issue -> issue.key().equals("DMT-3"))

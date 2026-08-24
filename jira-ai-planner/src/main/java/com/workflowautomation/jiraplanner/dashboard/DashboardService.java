@@ -81,7 +81,7 @@ public class DashboardService {
                 .filter(execution -> "HUMAN_REVIEW_REQUIRED".equals(execution.status().name())).count());
 
         Map<String, Long> stageCounts = new LinkedHashMap<>();
-        for (String stage : List.of("READY", "DEVELOPMENT", "TESTING", "STAGING", "HUMAN_REVIEW", "COMPLETED")) {
+        for (String stage : List.of("BACKLOG", "READY_DEVELOPMENT", "DEVELOPMENT", "TESTING", "STAGING", "HUMAN_REVIEW", "COMPLETED")) {
             stageCounts.put(stage, issues.stream().filter(issue -> stage.equals(issue.stage())).count());
         }
 
@@ -112,8 +112,9 @@ public class DashboardService {
         }
         if (status.contains("deploy") || status.contains("staging")) return "STAGING";
         if (status.contains("test") || (isInProgress(category, status) && isTestingTask(issue))) return "TESTING";
+        if (status.equals(lower(jiraProperties.getReadyForDevelopmentStatus()))) return "READY_DEVELOPMENT";
         if (status.contains("develop") || isInProgress(category, status)) return "DEVELOPMENT";
-        return "READY";
+        return "BACKLOG";
     }
 
     private boolean isInProgress(String category, String status) {

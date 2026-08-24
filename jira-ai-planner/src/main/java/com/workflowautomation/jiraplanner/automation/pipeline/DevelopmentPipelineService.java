@@ -41,9 +41,10 @@ public class DevelopmentPipelineService {
             return save(status(execution, DevelopmentPipelineState.NO_STORY_TO_PROCESS,
                     "No Story is in Ready for Development."));
         }
-        DevelopmentPipelineStatus running = save(status(execution, DevelopmentPipelineState.RUNNING,
+        AutomationExecutionView developmentExecution = orchestrator.ensureDevelopmentPhase(executionId);
+        DevelopmentPipelineStatus running = save(status(developmentExecution, DevelopmentPipelineState.RUNNING,
                 "Development pipeline started and is processing one Story."));
-        executor.execute(() -> run(execution));
+        executor.execute(() -> run(developmentExecution));
         return running;
     }
 

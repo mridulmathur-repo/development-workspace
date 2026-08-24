@@ -41,7 +41,6 @@ public class CommandDevelopmentAgent implements DevelopmentAgent {
     public AgentOutcome execute(AgentAssignment assignment) {
         Path patchFile = null;
         try {
-            requireWindows();
             String projectKey = projectKey(assignment.epicKey());
             ProjectDefinition project = projects.require(projectKey);
             if (blank(project.developmentCommand())) return failure("AUTOMATION_DEVELOPMENT_COMMAND is not configured");
@@ -60,8 +59,6 @@ public class CommandDevelopmentAgent implements DevelopmentAgent {
                     + assignment.developmentTaskKey() + ": AI development\"");
             run(project.repositoryRoot(), "git push " + project.remote() + " HEAD:" + assignment.branchName());
             String sha = run(project.repositoryRoot(), "git rev-parse HEAD").trim();
-            if (!blank(project.stagingDeployCommand())) run(project.allowedDirectory(), project.stagingDeployCommand());
-            if (!blank(project.stagingHealthUrl())) verifyHealth(project.stagingHealthUrl());
             return AgentOutcome.success(sha);
         } catch (Exception ex) {
             return failure(ex.getMessage() == null ? "Development worker failed" : ex.getMessage());
@@ -69,12 +66,6 @@ public class CommandDevelopmentAgent implements DevelopmentAgent {
             if (patchFile != null) {
                 try { Files.deleteIfExists(patchFile); } catch (IOException ignored) { }
             }
-        }
-    }
-
-    private void requireWindows() {
-        if (!System.getProperty("os.name", "").toLowerCase().contains("windows")) {
-            throw new IllegalStateException("Command worker requires the planner to run natively on Windows; Linux Docker mode supports dry-run only");
         }
     }
 
@@ -111,8 +102,10 @@ public class CommandDevelopmentAgent implements DevelopmentAgent {
     }
 
     private String run(Path directory, String command, AgentAssignment assignment, Path patchFile) throws Exception {
-        ProcessBuilder builder = new ProcessBuilder("powershell.exe", "-NoProfile", "-NonInteractive",
-                "-ExecutionPolicy", "Bypass", "-Command", command)
+        boolean windows = System.getProperty("os.name", "").toLowerCase().contains("windows");
+        ProcessBuilder builder = new ProcessBuilder(windows
+                ? new String[] {"powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command}
+                : new String[] {"/bin/sh", "-lc", command})
                 .directory(directory.toFile()).redirectErrorStream(true);
         if (assignment != null) {
             builder.environment().put("AI_EPIC_KEY", safe(assignment.epicKey()));

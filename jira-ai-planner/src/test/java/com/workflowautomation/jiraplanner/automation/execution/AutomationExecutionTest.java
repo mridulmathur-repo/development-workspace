@@ -80,6 +80,20 @@ class AutomationExecutionTest {
                 .hasMessageContaining("branch head");
     }
 
+    @Test
+    void readyStoryReopensActiveStagingExecutionForDevelopment() {
+        AutomationExecution execution = execution();
+        execution.developmentSucceeded(COMMIT_2);
+        execution.testingSucceeded(COMMIT_2);
+
+        execution.reopenDevelopmentCycle(COMMIT_2);
+
+        assertThat(execution.getExecutionStatus()).isEqualTo(ExecutionStatus.ACTIVE);
+        assertThat(execution.getPhase()).isEqualTo(ExecutionPhase.DEVELOPMENT);
+        assertThat(execution.getBranchHeadCommit()).isEqualTo(COMMIT_2);
+        assertThat(execution.getTestedCommit()).isBlank();
+    }
+
     private AutomationExecution execution() {
         return AutomationExecution.start("DMT-1", "DMT", "Price range slider",
                 "ai/epic-DMT-1-price-range-slider", "main", "C:/repo/DemoMart", COMMIT_1);

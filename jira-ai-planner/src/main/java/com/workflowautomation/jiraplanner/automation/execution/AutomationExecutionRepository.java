@@ -16,4 +16,6 @@ public interface AutomationExecutionRepository extends JpaRepository<AutomationE
     List<AutomationExecution> findAllByOrderByUpdatedAtDesc();
 
     List<AutomationExecution> findByExecutionStatusAndPhase(ExecutionStatus status, ExecutionPhase phase);
+
+    List<AutomationExecution> findByExecutionStatus(ExecutionStatus status);
 }

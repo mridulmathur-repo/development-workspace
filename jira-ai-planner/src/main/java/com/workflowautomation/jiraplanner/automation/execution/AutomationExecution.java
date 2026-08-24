@@ -134,6 +134,22 @@ public class AutomationExecution {
         touch();
     }
 
+    public void reopenDevelopmentCycle(String currentBranchHead) {
+        if (executionStatus != ExecutionStatus.ACTIVE) {
+            throw new IllegalStateException("Only an active execution can reopen development");
+        }
+        if (phase == ExecutionPhase.COMPLETED || phase == ExecutionPhase.CANCELLED
+                || phase == ExecutionPhase.HUMAN_REVIEW) {
+            throw new IllegalStateException("Execution cannot reopen development from phase " + phase);
+        }
+        branchHeadCommit = required(currentBranchHead, "Current remote branch head");
+        testedCommit = "";
+        phase = ExecutionPhase.DEVELOPMENT;
+        automaticFixAttemptsInCycle = 0;
+        clearFailure();
+        touch();
+    }
+
     public boolean developmentFailed(FailureReport failure, int maxAutomaticFixAttempts) {
         requireActivePhase(ExecutionPhase.DEVELOPMENT);
         developmentAttempts++;

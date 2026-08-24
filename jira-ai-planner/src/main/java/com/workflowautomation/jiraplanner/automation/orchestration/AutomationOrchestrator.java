@@ -97,6 +97,24 @@ public class AutomationOrchestrator {
         return AutomationExecutionView.from(execution);
     }
 
+    public AutomationExecutionView ensureDevelopmentPhase(String id) {
+        AutomationExecution execution = requireExecution(id);
+        if (execution.getExecutionStatus() != ExecutionStatus.ACTIVE) {
+            throw new IllegalStateException("Execution must be active before development can start");
+        }
+        if (execution.getPhase() == com.workflowautomation.jiraplanner.automation.execution.ExecutionPhase.DEVELOPMENT) {
+            return AutomationExecutionView.from(execution);
+        }
+        ProjectDefinition project = projects.require(execution.getJiraProjectKey());
+        String remoteHead = git.remoteBranchHead(project, execution.getBranchName());
+        execution.reopenDevelopmentCycle(remoteHead);
+        executions.save(execution);
+        jira.addAutomationComment(execution.getEpicKey(),
+                "A Story entered Ready for Development. Execution %s reopened the Development phase at commit %s."
+                        .formatted(execution.getId(), remoteHead));
+        return AutomationExecutionView.from(execution);
+    }
+
     public AutomationExecutionView recordTestingResult(String id, boolean successful, String commitSha,
                                                        FailureReport failure) {
         AutomationExecution execution = requireExecution(id);
