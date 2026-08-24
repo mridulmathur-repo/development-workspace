@@ -18,6 +18,7 @@ RUN apk add --no-cache curl git openssh-client maven nodejs npm \
 WORKDIR /app
 COPY target/jira-ai-planner-*.jar app.jar
 COPY --from=ui-build /ui/dist /app/ui
+COPY scripts/ai-development.sh /app/ai-development.sh
 
 USER planner
 EXPOSE 8100
