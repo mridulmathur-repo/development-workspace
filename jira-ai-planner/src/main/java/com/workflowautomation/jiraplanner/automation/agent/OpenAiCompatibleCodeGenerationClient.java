@@ -66,7 +66,8 @@ public class OpenAiCompatibleCodeGenerationClient implements AiCodeGenerationCli
             validate(change);
             return change;
         } catch (Exception exception) {
-            throw new IllegalStateException("AI provider returned an invalid code-change response", exception);
+            throw new IllegalStateException("AI provider returned an invalid code-change response: "
+                    + diagnostic(exception), exception);
         }
     }
 
@@ -115,6 +116,13 @@ public class OpenAiCompatibleCodeGenerationClient implements AiCodeGenerationCli
     private void requireConfigured() {
         if (properties.getApiKey() == null || properties.getApiKey().isBlank())
             throw new IllegalStateException("AI_API_KEY is required for autonomous development");
+    }
+    private String diagnostic(Exception exception) {
+        Throwable cause = exception;
+        while (cause.getCause() != null && cause.getCause() != cause) cause = cause.getCause();
+        String message = cause.getMessage();
+        if (message == null || message.isBlank()) message = cause.getClass().getSimpleName();
+        return message.substring(0, Math.min(500, message.length()));
     }
     private String blankFallback(String value) { return value == null || value.isBlank() ? "None" : value; }
 }
