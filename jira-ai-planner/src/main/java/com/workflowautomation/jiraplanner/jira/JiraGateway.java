@@ -30,6 +30,8 @@ public interface JiraGateway {
 
     default List<DevelopmentWorkItem> findPendingDevelopmentWork(String epicKey) { return List.of(); }
 
+    default boolean hasUndevelopedStories(String epicKey) { return false; }
+
     default void startDevelopmentWork(DevelopmentWorkItem work) { }
 
     default void completeDevelopmentWork(DevelopmentWorkItem work, String commitSha) { }

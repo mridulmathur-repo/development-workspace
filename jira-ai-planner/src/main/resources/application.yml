@@ -48,6 +48,7 @@ jira:
   story-issue-type: ${JIRA_STORY_ISSUE_TYPE:Story}
   task-issue-type: ${JIRA_TASK_ISSUE_TYPE:Task}
   development-status: ${JIRA_DEVELOPMENT_STATUS:In Development}
+  ready-for-development-status: ${JIRA_READY_FOR_DEVELOPMENT_STATUS:Ready for Development}
   testing-status: ${JIRA_TESTING_STATUS:In Testing}
   staging-status: ${JIRA_STAGING_STATUS:Ready for Staging}
   completed-status: ${JIRA_COMPLETED_STATUS:Done}

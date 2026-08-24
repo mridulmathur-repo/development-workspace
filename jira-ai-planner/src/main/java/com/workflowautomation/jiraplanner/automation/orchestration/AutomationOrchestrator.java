@@ -86,6 +86,17 @@ public class AutomationOrchestrator {
         return AutomationExecutionView.from(execution);
     }
 
+    public AutomationExecutionView recordStoryDevelopmentSuccess(String id, String commitSha) {
+        AutomationExecution execution = requireExecution(id);
+        requireCurrentRemoteCommit(execution, commitSha);
+        execution.storyDevelopmentSucceeded(commitSha);
+        executions.save(execution);
+        jira.addAutomationComment(execution.getEpicKey(),
+                "One AI Story development completed at commit %s. Execution %s remains in Development until a human promotes the next Story."
+                        .formatted(commitSha, execution.getId()));
+        return AutomationExecutionView.from(execution);
+    }
+
     public AutomationExecutionView recordTestingResult(String id, boolean successful, String commitSha,
                                                        FailureReport failure) {
         AutomationExecution execution = requireExecution(id);

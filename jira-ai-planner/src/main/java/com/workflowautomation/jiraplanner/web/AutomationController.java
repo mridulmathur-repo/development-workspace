@@ -115,6 +115,14 @@ public class AutomationController {
         return agentRuns.runDevelopment(id);
     }
 
+    @PostMapping("/executions/{id}/run-next-story")
+    public AutomationExecutionView runNextStory(
+            @PathVariable String id,
+            @RequestHeader(value = CONTROL_HEADER, required = false) String controlToken) {
+        authorizer.requireAuthorized(controlToken);
+        return agentRuns.runNextDevelopment(id);
+    }
+
     @PostMapping("/executions/{id}/run-testing")
     public AutomationExecutionView runTesting(
             @PathVariable String id,

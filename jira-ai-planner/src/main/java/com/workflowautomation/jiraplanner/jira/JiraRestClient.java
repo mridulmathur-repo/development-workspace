@@ -203,6 +203,18 @@ public class JiraRestClient implements JiraGateway {
     }
 
     @Override
+    public boolean hasUndevelopedStories(String epicKey) {
+        String source = sourceLabel(epicKey);
+        return findTrackedIssues(200).stream()
+                .filter(issue -> issue.labels().stream().anyMatch(source::equalsIgnoreCase))
+                .filter(issue -> issue.labels().stream().anyMatch(label -> label.toLowerCase(Locale.ROOT).startsWith("ai-story-")))
+                .anyMatch(issue -> !properties.getTestingStatus().equalsIgnoreCase(issue.status())
+                        && !properties.getStagingStatus().equalsIgnoreCase(issue.status())
+                        && !properties.getCompletedStatus().equalsIgnoreCase(issue.status())
+                        && !properties.getHumanReviewStatus().equalsIgnoreCase(issue.status()));
+    }
+
+    @Override
     public void startDevelopmentWork(DevelopmentWorkItem work) {
         transitionToIfNeeded(work.storyKey(), properties.getDevelopmentStatus());
         transitionToIfNeeded(work.developmentTaskKey(), properties.getDevelopmentStatus());
@@ -292,8 +304,7 @@ public class JiraRestClient implements JiraGateway {
     }
 
     private boolean isDevelopmentCandidate(JiraIssueSnapshot issue) {
-        return "new".equalsIgnoreCase(issue.statusCategory())
-                || "to do".equalsIgnoreCase(issue.status())
+        return properties.getReadyForDevelopmentStatus().equalsIgnoreCase(issue.status())
                 || properties.getDevelopmentStatus().equalsIgnoreCase(issue.status());
     }
 

@@ -125,6 +125,15 @@ public class AutomationExecution {
         touch();
     }
 
+    public void storyDevelopmentSucceeded(String commitSha) {
+        requireActivePhase(ExecutionPhase.DEVELOPMENT);
+        developmentAttempts++;
+        branchHeadCommit = required(commitSha, "Development commit");
+        clearFailure();
+        automaticFixAttemptsInCycle = 0;
+        touch();
+    }
+
     public boolean developmentFailed(FailureReport failure, int maxAutomaticFixAttempts) {
         requireActivePhase(ExecutionPhase.DEVELOPMENT);
         developmentAttempts++;

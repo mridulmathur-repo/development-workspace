@@ -16,6 +16,7 @@ public class JiraProperties {
     private String storyIssueType = "Story";
     private String taskIssueType = "Task";
     private String developmentStatus = "In Development";
+    private String readyForDevelopmentStatus = "Ready for Development";
     private String testingStatus = "In Testing";
     private String stagingStatus = "Ready for Staging";
     private String completedStatus = "Done";
@@ -102,6 +103,8 @@ public class JiraProperties {
 
     public String getDevelopmentStatus() { return developmentStatus; }
     public void setDevelopmentStatus(String developmentStatus) { this.developmentStatus = developmentStatus; }
+    public String getReadyForDevelopmentStatus() { return readyForDevelopmentStatus; }
+    public void setReadyForDevelopmentStatus(String value) { this.readyForDevelopmentStatus = value; }
     public String getTestingStatus() { return testingStatus; }
     public void setTestingStatus(String testingStatus) { this.testingStatus = testingStatus; }
     public String getStagingStatus() { return stagingStatus; }

@@ -29,7 +29,7 @@ public class AgentRunService {
     public AutomationExecutionView runDevelopment(String executionId) {
         AutomationExecutionView execution = orchestrator.get(executionId);
         List<DevelopmentWorkItem> workItems = jira.findPendingDevelopmentWork(execution.epicKey());
-        if (workItems.isEmpty()) throw new IllegalStateException("No To Do or In Development Stories were found for " + execution.epicKey());
+        if (workItems.isEmpty()) throw noReadyStory(execution.epicKey());
         String latestCommit = execution.branchHeadCommit();
         for (DevelopmentWorkItem work : workItems) {
             jira.startDevelopmentWork(work);
@@ -47,7 +47,31 @@ public class AgentRunService {
             latestCommit = outcome.commitSha();
             jira.completeDevelopmentWork(work, latestCommit);
         }
-        return orchestrator.recordDevelopmentResult(executionId, true, latestCommit, null);
+        return jira.hasUndevelopedStories(execution.epicKey())
+                ? orchestrator.recordStoryDevelopmentSuccess(executionId, latestCommit)
+                : orchestrator.recordDevelopmentResult(executionId, true, latestCommit, null);
+    }
+
+    public AutomationExecutionView runNextDevelopment(String executionId) {
+        AutomationExecutionView execution = orchestrator.get(executionId);
+        DevelopmentWorkItem work = jira.findPendingDevelopmentWork(execution.epicKey()).stream()
+                .findFirst().orElseThrow(() -> noReadyStory(execution.epicKey()));
+        jira.startDevelopmentWork(work);
+        AgentOutcome outcome = developmentAgent.execute(assignment(execution, work, execution.branchHeadCommit()));
+        if (!outcome.successful()) {
+            AutomationExecutionView result = orchestrator.recordDevelopmentResult(executionId, false, "", outcome.failure());
+            if (result.status() == ExecutionStatus.HUMAN_REVIEW_REQUIRED) {
+                jira.failDevelopmentWork(work, failureComment(work, outcome));
+            } else {
+                jira.addAutomationComment(work.developmentTaskKey(),
+                        "AI development attempt failed and will be retried. " + outcome.failure().summary());
+            }
+            return result;
+        }
+        jira.completeDevelopmentWork(work, outcome.commitSha());
+        return jira.hasUndevelopedStories(execution.epicKey())
+                ? orchestrator.recordStoryDevelopmentSuccess(executionId, outcome.commitSha())
+                : orchestrator.recordDevelopmentResult(executionId, true, outcome.commitSha(), null);
     }
 
     public AutomationExecutionView runTesting(String executionId) {
@@ -74,5 +98,9 @@ public class AgentRunService {
         return "AI development requires human review. Story: %s. Development Task: %s. Expected: %s. Actual: %s. Suggested action: %s."
                 .formatted(work.storyKey(), work.developmentTaskKey(), outcome.failure().expected(),
                         outcome.failure().actual(), outcome.failure().suggestedAction());
+    }
+
+    private IllegalStateException noReadyStory(String epicKey) {
+        return new IllegalStateException("No Story in Ready for Development or In Development was found for " + epicKey);
     }
 }
