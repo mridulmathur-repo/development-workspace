@@ -5,6 +5,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.HttpClientErrorException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -58,9 +59,7 @@ public class OpenAiCompatibleCodeGenerationClient implements AiCodeGenerationCli
                 "messages", List.of(Map.of("role", "system", "content", SYSTEM_PROMPT),
                         Map.of("role", "user", "content", prompt)),
                 "response_format", responseFormat());
-        JsonNode response = restClient.post().uri("/chat/completions")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + properties.getApiKey())
-                .contentType(MediaType.APPLICATION_JSON).body(body).retrieve().body(JsonNode.class);
+        JsonNode response = requestWithRateLimitBackoff(body);
         try {
             String content = response.path("choices").path(0).path("message").path("content").asText();
             GeneratedCodeChange change = objectMapper.readValue(content, GeneratedCodeChange.class);
@@ -68,6 +67,25 @@ public class OpenAiCompatibleCodeGenerationClient implements AiCodeGenerationCli
             return change;
         } catch (Exception exception) {
             throw new IllegalStateException("AI provider returned an invalid code-change response", exception);
+        }
+    }
+
+    private JsonNode requestWithRateLimitBackoff(Map<String, Object> body) {
+        long[] delays = {5_000L, 15_000L, 45_000L};
+        for (int attempt = 0; ; attempt++) {
+            try {
+                return restClient.post().uri("/chat/completions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + properties.getApiKey())
+                        .contentType(MediaType.APPLICATION_JSON).body(body).retrieve().body(JsonNode.class);
+            } catch (HttpClientErrorException.TooManyRequests exception) {
+                if (attempt >= delays.length) throw exception;
+                try {
+                    Thread.sleep(delays[attempt]);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Interrupted while waiting for the AI provider rate limit", interrupted);
+                }
+            }
         }
     }
 
