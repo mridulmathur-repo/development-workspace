@@ -36,7 +36,7 @@ public class CodeContextCollector {
             int maximum = Math.max(2000, properties.getCodeMaxContextChars());
             for (Candidate candidate : candidates) {
                 String section = "\n--- FILE: DemoMart/" + candidate.relative().toString().replace('\\', '/') + " ---\n" + candidate.content() + "\n";
-                if (context.length() + section.length() > maximum) break;
+                if (context.length() + section.length() > maximum) continue;
                 context.append(section);
             }
             if (context.isEmpty()) throw new IllegalStateException("No safe DemoMart source context could be collected");
