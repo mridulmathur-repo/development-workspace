@@ -44,21 +44,21 @@ public class CommandDevelopmentAgent implements DevelopmentAgent {
             String projectKey = projectKey(assignment.epicKey());
             ProjectDefinition project = projects.require(projectKey);
             if (blank(project.developmentCommand())) return failure("AUTOMATION_DEVELOPMENT_COMMAND is not configured");
-            run(project.repositoryRoot(), "git checkout " + assignment.branchName());
-            run(project.repositoryRoot(), "git pull --ff-only " + project.remote() + " " + assignment.branchName());
-            String context = contextCollector.collect(project.allowedDirectory(), assignment);
+            Path workerRepository = prepareIsolatedRepository(project, assignment);
+            Path workerProject = workerRepository.resolve(project.repositoryRoot().relativize(project.allowedDirectory())).normalize();
+            String context = contextCollector.collect(workerProject, assignment);
             GeneratedCodeChange generated = codeGenerator.generatePatch(assignment, context);
             patchFile = Files.createTempFile("jira-ai-" + assignment.storyKey().toLowerCase() + "-", ".patch");
             Files.writeString(patchFile, generated.patch(), StandardCharsets.UTF_8);
-            runDevelopmentCommand(project.allowedDirectory(), project.developmentCommand(), assignment, patchFile);
-            String projectPath = project.repositoryRoot().relativize(project.allowedDirectory()).toString();
-            String changed = run(project.repositoryRoot(), "git status --porcelain -- \"" + projectPath + "\"");
+            runDevelopmentCommand(workerProject, project.developmentCommand(), assignment, patchFile);
+            String projectPath = workerRepository.relativize(workerProject).toString();
+            String changed = run(workerRepository, "git status --porcelain -- \"" + projectPath + "\"");
             if (changed.isBlank()) return failure("Development command produced no committed code changes");
-            run(project.repositoryRoot(), "git add -- \"" + projectPath + "\"");
-            run(project.repositoryRoot(), "git commit -m \"" + assignment.storyKey() + " "
+            run(workerRepository, "git add -- \"" + projectPath + "\"");
+            run(workerRepository, "git commit -m \"" + assignment.storyKey() + " "
                     + assignment.developmentTaskKey() + ": AI development\"");
-            run(project.repositoryRoot(), "git push " + project.remote() + " HEAD:" + assignment.branchName());
-            String sha = run(project.repositoryRoot(), "git rev-parse HEAD").trim();
+            run(workerRepository, "git push " + project.remote() + " HEAD:" + assignment.branchName());
+            String sha = run(workerRepository, "git rev-parse HEAD").trim();
             return AgentOutcome.success(sha);
         } catch (Exception ex) {
             return failure(ex.getMessage() == null ? "Development worker failed" : ex.getMessage());
@@ -73,6 +73,28 @@ public class CommandDevelopmentAgent implements DevelopmentAgent {
         int separator = epicKey == null ? -1 : epicKey.indexOf('-');
         if (separator < 1) throw new IllegalArgumentException("Epic key must have PROJECT-NUMBER format");
         return epicKey.substring(0, separator);
+    }
+
+    private Path prepareIsolatedRepository(ProjectDefinition project, AgentAssignment assignment) throws Exception {
+        String safeId = assignment.executionId().replaceAll("[^A-Za-z0-9._-]", "-");
+        Path workspaceRoot = Path.of(System.getProperty("java.io.tmpdir"), "jira-ai-workspaces").toAbsolutePath().normalize();
+        Path workerRepository = workspaceRoot.resolve(safeId).normalize();
+        if (!workerRepository.startsWith(workspaceRoot)) throw new IllegalStateException("Invalid isolated workspace path");
+        Files.createDirectories(workspaceRoot);
+        String remoteUrl = run(project.repositoryRoot(), "git remote get-url " + project.remote()).trim();
+        if (!Files.isDirectory(workerRepository.resolve(".git"))) {
+            run(workspaceRoot, "git clone --branch " + assignment.branchName() + " --single-branch "
+                    + remoteUrl + " \"" + workerRepository + "\"");
+        } else {
+            run(workerRepository, "git fetch " + project.remote() + " " + assignment.branchName());
+            run(workerRepository, "git checkout -B " + assignment.branchName() + " "
+                    + project.remote() + "/" + assignment.branchName());
+            run(workerRepository, "git reset --hard " + project.remote() + "/" + assignment.branchName());
+            run(workerRepository, "git clean -fdx");
+        }
+        run(workerRepository, "git config user.name \"Jira AI Development Agent\"");
+        run(workerRepository, "git config user.email \"jira-ai-agent@localhost\"");
+        return workerRepository;
     }
 
     private void verifyHealth(String url) throws Exception {

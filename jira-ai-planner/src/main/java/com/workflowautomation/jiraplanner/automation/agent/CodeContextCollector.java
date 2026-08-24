@@ -33,7 +33,7 @@ public class CodeContextCollector {
                     .sorted(Comparator.comparingInt(Candidate::score).reversed().thenComparing(candidate -> candidate.relative().toString()))
                     .limit(Math.max(1, properties.getCodeMaxFiles())).toList();
             StringBuilder context = new StringBuilder();
-            int maximum = Math.max(10000, properties.getCodeMaxContextChars());
+            int maximum = Math.max(2000, properties.getCodeMaxContextChars());
             for (Candidate candidate : candidates) {
                 String section = "\n--- FILE: DemoMart/" + candidate.relative().toString().replace('\\', '/') + " ---\n" + candidate.content() + "\n";
                 if (context.length() + section.length() > maximum) break;
