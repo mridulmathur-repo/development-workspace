@@ -33,6 +33,8 @@ ai:
   model: ${AI_MODEL:openai/gpt-oss-120b}
   max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:5000}
   temperature: ${AI_TEMPERATURE:0.1}
+  code-max-context-chars: ${AI_CODE_MAX_CONTEXT_CHARS:120000}
+  code-max-files: ${AI_CODE_MAX_FILES:40}
 
 jira:
   base-url: ${JIRA_BASE_URL:}

@@ -14,6 +14,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
@@ -25,12 +26,20 @@ import java.util.concurrent.TimeUnit;
 @ConditionalOnProperty(name = "automation.worker-mode", havingValue = "command")
 public class CommandDevelopmentAgent implements DevelopmentAgent {
     private final ProjectRegistry projects;
+    private final CodeContextCollector contextCollector;
+    private final AiCodeGenerationClient codeGenerator;
     private final Duration timeout = Duration.ofMinutes(15);
 
-    public CommandDevelopmentAgent(ProjectRegistry projects) { this.projects = projects; }
+    public CommandDevelopmentAgent(ProjectRegistry projects, CodeContextCollector contextCollector,
+                                   AiCodeGenerationClient codeGenerator) {
+        this.projects = projects;
+        this.contextCollector = contextCollector;
+        this.codeGenerator = codeGenerator;
+    }
 
     @Override
     public AgentOutcome execute(AgentAssignment assignment) {
+        Path patchFile = null;
         try {
             requireWindows();
             String projectKey = projectKey(assignment.epicKey());
@@ -38,7 +47,11 @@ public class CommandDevelopmentAgent implements DevelopmentAgent {
             if (blank(project.developmentCommand())) return failure("AUTOMATION_DEVELOPMENT_COMMAND is not configured");
             run(project.repositoryRoot(), "git checkout " + assignment.branchName());
             run(project.repositoryRoot(), "git pull --ff-only " + project.remote() + " " + assignment.branchName());
-            runDevelopmentCommand(project.allowedDirectory(), project.developmentCommand(), assignment);
+            String context = contextCollector.collect(project.allowedDirectory(), assignment);
+            GeneratedCodeChange generated = codeGenerator.generatePatch(assignment, context);
+            patchFile = Files.createTempFile("jira-ai-" + assignment.storyKey().toLowerCase() + "-", ".patch");
+            Files.writeString(patchFile, generated.patch(), StandardCharsets.UTF_8);
+            runDevelopmentCommand(project.allowedDirectory(), project.developmentCommand(), assignment, patchFile);
             String projectPath = project.repositoryRoot().relativize(project.allowedDirectory()).toString();
             String changed = run(project.repositoryRoot(), "git status --porcelain -- \"" + projectPath + "\"");
             if (changed.isBlank()) return failure("Development command produced no committed code changes");
@@ -52,6 +65,10 @@ public class CommandDevelopmentAgent implements DevelopmentAgent {
             return AgentOutcome.success(sha);
         } catch (Exception ex) {
             return failure(ex.getMessage() == null ? "Development worker failed" : ex.getMessage());
+        } finally {
+            if (patchFile != null) {
+                try { Files.deleteIfExists(patchFile); } catch (IOException ignored) { }
+            }
         }
     }
 
@@ -85,11 +102,15 @@ public class CommandDevelopmentAgent implements DevelopmentAgent {
         return run(directory, command, null);
     }
 
-    private String runDevelopmentCommand(Path directory, String command, AgentAssignment assignment) throws Exception {
-        return run(directory, command, assignment);
+    private String runDevelopmentCommand(Path directory, String command, AgentAssignment assignment, Path patchFile) throws Exception {
+        return run(directory, command, assignment, patchFile);
     }
 
     private String run(Path directory, String command, AgentAssignment assignment) throws Exception {
+        return run(directory, command, assignment, null);
+    }
+
+    private String run(Path directory, String command, AgentAssignment assignment, Path patchFile) throws Exception {
         ProcessBuilder builder = new ProcessBuilder("powershell.exe", "-NoProfile", "-NonInteractive",
                 "-ExecutionPolicy", "Bypass", "-Command", command)
                 .directory(directory.toFile()).redirectErrorStream(true);
@@ -101,6 +122,7 @@ public class CommandDevelopmentAgent implements DevelopmentAgent {
             builder.environment().put("AI_DEVELOPMENT_TASK_KEY", safe(assignment.developmentTaskKey()));
             builder.environment().put("AI_DEVELOPMENT_TASK_DESCRIPTION", safe(assignment.developmentTaskDescription()));
             builder.environment().put("AI_ALLOWED_DIRECTORY", directory.toString());
+            if (patchFile != null) builder.environment().put("AI_PATCH_FILE", patchFile.toString());
         }
         Process process = builder.start();
         if (!process.waitFor(timeout.toSeconds(), TimeUnit.SECONDS)) { process.destroyForcibly(); throw new IOException("Command timed out: " + command); }

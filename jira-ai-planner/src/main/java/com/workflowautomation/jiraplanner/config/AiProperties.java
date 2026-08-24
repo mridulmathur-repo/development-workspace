@@ -10,6 +10,8 @@ public class AiProperties {
     private String model = "openai/gpt-oss-120b";
     private int maxOutputTokens = 5000;
     private double temperature = 0.1;
+    private int codeMaxContextChars = 120000;
+    private int codeMaxFiles = 40;
 
     public String getBaseUrl() {
         return baseUrl;
@@ -50,4 +52,9 @@ public class AiProperties {
     public void setTemperature(double temperature) {
         this.temperature = temperature;
     }
+
+    public int getCodeMaxContextChars() { return codeMaxContextChars; }
+    public void setCodeMaxContextChars(int value) { this.codeMaxContextChars = value; }
+    public int getCodeMaxFiles() { return codeMaxFiles; }
+    public void setCodeMaxFiles(int value) { this.codeMaxFiles = value; }
 }
