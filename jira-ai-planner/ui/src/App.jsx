@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 const STAGES = [
   ['READY', 'Ready'],
@@ -43,6 +43,8 @@ function App() {
   const [unlocked, setUnlocked] = useState(Boolean(sessionStorage.getItem('automation-token')))
   const [epicKey, setEpicKey] = useState('DMT-1')
   const [actionMessage, setActionMessage] = useState('')
+  const [pipelineStatuses, setPipelineStatuses] = useState([])
+  const lastPipelineNotice = useRef('')
 
   const refresh = async (silent = false) => {
     if (!silent) setLoading(true)
@@ -62,6 +64,29 @@ function App() {
     const timer = window.setInterval(() => refresh(true), 30000)
     return () => window.clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    if (!unlocked || !token) return undefined
+    const loadStatuses = async () => {
+      try {
+        const statuses = await request('/api/automation/pipeline-status', {
+          headers: { 'X-Automation-Control-Token': token },
+        })
+        setPipelineStatuses(statuses)
+        const latest = statuses[0]
+        if (latest && latest.updatedAt !== lastPipelineNotice.current && latest.state !== 'RUNNING') {
+          lastPipelineNotice.current = latest.updatedAt
+          setActionMessage(`${latest.epicKey}: ${latest.message}`)
+          await refresh(true)
+        }
+      } catch (exception) {
+        setActionMessage(exception.message)
+      }
+    }
+    loadStatuses()
+    const timer = window.setInterval(loadStatuses, 10000)
+    return () => window.clearInterval(timer)
+  }, [unlocked, token])
 
   const filteredIssues = useMemo(() => dashboard.issues.filter((issue) => {
     const matchesType = typeFilter === 'ALL' || issue.issueType.toUpperCase() === typeFilter
@@ -141,6 +166,14 @@ function App() {
     const instructions = window.prompt(`Reason for cancelling ${execution.epicKey}:`, '')
     if (instructions === null) return
     await automationAction(`/api/automation/executions/${execution.id}/cancel`, { instructions })
+  }
+
+  const triggerDevelopment = async (execution) => {
+    const result = await request(`/api/automation/executions/${execution.id}/trigger-development`, {
+      method: 'POST', headers: { 'X-Automation-Control-Token': token },
+    }).catch((exception) => ({ message: exception.message }))
+    setActionMessage(`${execution.epicKey}: ${result.message}`)
+    await refresh(true)
   }
 
   const jiraLink = (key) => dashboard.jiraBaseUrl && key
@@ -224,7 +257,7 @@ function App() {
               ? <Board issues={filteredIssues} onSelect={setSelected} />
               : view === 'tracker'
                 ? <Tracker issues={filteredIssues} onSelect={setSelected} jiraLink={jiraLink} />
-                : <Executions executions={dashboard.executions} unlocked={unlocked} onSelect={setSelected} onResume={resume} onCancel={cancel} />}
+                : <Executions executions={dashboard.executions} pipelineStatuses={pipelineStatuses} unlocked={unlocked} onSelect={setSelected} onResume={resume} onCancel={cancel} onTrigger={triggerDevelopment} />}
           </div>
 
           <aside className="side-stack">
@@ -309,21 +342,29 @@ function Tracker({ issues, onSelect, jiraLink }) {
     </tr>)}</tbody></table>{issues.length === 0 && <Empty text="No Stories or Tasks match this filter." />}</div>
 }
 
-function Executions({ executions, unlocked, onSelect, onResume, onCancel }) {
+function Executions({ executions, pipelineStatuses, unlocked, onSelect, onResume, onCancel, onTrigger }) {
   if (executions.length === 0) return <Empty text="No MVP2 automation execution has started yet." />
-  return <div className="execution-list">{executions.map((item) => <article className="execution-card" key={item.id}>
+  return <div className="execution-list">{executions.map((item) => {
+    const pipeline = pipelineStatuses.find((status) => status.executionId === item.id)
+    return <article className="execution-card" key={item.id}>
     <button className="execution-main" onClick={() => onSelect(item)}>
       <span className={`status-orb ${item.status.toLowerCase()}`} />
       <span><strong>{item.epicKey} · {item.epicSummary}</strong><small>{item.branchName}</small></span>
       <span className="phase-block"><b>{item.phase.replaceAll('_', ' ')}</b><small>commit {shortCommit(item.branchHeadCommit)}</small></span>
       <span className="attempt-block">{item.developmentAttempts} dev / {item.testingAttempts} test</span>
     </button>
+    {pipeline && <div className="execution-actions"><span>{pipeline.message}</span></div>}
+    {unlocked && item.status === 'ACTIVE' && item.phase === 'DEVELOPMENT' && <div className="execution-actions">
+      <button onClick={() => onTrigger(item)} disabled={pipeline?.state === 'RUNNING'}>
+        {pipeline?.state === 'RUNNING' ? 'Development running…' : 'Start next ready Story'}
+      </button>
+    </div>}
     {unlocked && item.status === 'HUMAN_REVIEW_REQUIRED' && <div className="execution-actions">
       <button onClick={() => onResume(item, 'DEVELOPMENT')}>Resume development</button>
       <button onClick={() => onResume(item, 'TESTING')}>Resume testing</button>
       <button className="danger-button" onClick={() => onCancel(item)}>Cancel</button>
     </div>}
-  </article>)}</div>
+  </article>})}</div>
 }
 
 function DetailDrawer({ item, onClose, jiraLink }) {

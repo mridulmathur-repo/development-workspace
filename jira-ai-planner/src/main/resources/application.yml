@@ -65,6 +65,8 @@ automation:
   control-token: ${AUTOMATION_CONTROL_TOKEN:}
   max-automatic-fix-attempts: ${MAX_DEVELOPMENT_FIX_ATTEMPTS:1}
   git-command-timeout-seconds: ${AUTOMATION_GIT_TIMEOUT_SECONDS:60}
+  development-poller-enabled: ${AUTOMATION_DEVELOPMENT_POLLER_ENABLED:true}
+  development-poll-delay-milliseconds: ${AUTOMATION_DEVELOPMENT_POLL_DELAY_MILLISECONDS:300000}
   projects:
     - jira-project-key: ${AUTOMATION_PROJECT_KEY:}
       repository-root: ${AUTOMATION_REPOSITORY_ROOT:}

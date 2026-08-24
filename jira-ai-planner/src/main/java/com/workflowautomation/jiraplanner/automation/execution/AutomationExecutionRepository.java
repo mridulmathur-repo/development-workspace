@@ -14,4 +14,6 @@ public interface AutomationExecutionRepository extends JpaRepository<AutomationE
     Optional<AutomationExecution> findFirstByEpicKeyOrderByCreatedAtDesc(String epicKey);
 
     List<AutomationExecution> findAllByOrderByUpdatedAtDesc();
+
+    List<AutomationExecution> findByExecutionStatusAndPhase(ExecutionStatus status, ExecutionPhase phase);
 }

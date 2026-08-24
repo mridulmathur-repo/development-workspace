@@ -22,6 +22,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.workflowautomation.jiraplanner.automation.pipeline.DevelopmentPipelineService;
+import com.workflowautomation.jiraplanner.automation.pipeline.DevelopmentPipelineStatus;
 
 @RestController
 @RequestMapping("/api/automation")
@@ -33,13 +35,31 @@ public class AutomationController {
     private final AutomationAuthorizer authorizer;
     private final AutomationProperties properties;
     private final AgentRunService agentRuns;
+    private final DevelopmentPipelineService developmentPipelines;
 
     public AutomationController(AutomationOrchestrator orchestrator, AutomationAuthorizer authorizer,
-                                AutomationProperties properties, AgentRunService agentRuns) {
+                                AutomationProperties properties, AgentRunService agentRuns,
+                                DevelopmentPipelineService developmentPipelines) {
         this.orchestrator = orchestrator;
         this.authorizer = authorizer;
         this.properties = properties;
         this.agentRuns = agentRuns;
+        this.developmentPipelines = developmentPipelines;
+    }
+
+    @PostMapping("/executions/{id}/trigger-development")
+    public DevelopmentPipelineStatus triggerDevelopment(
+            @PathVariable String id,
+            @RequestHeader(value = CONTROL_HEADER, required = false) String controlToken) {
+        authorizer.requireAuthorized(controlToken);
+        return developmentPipelines.trigger(id);
+    }
+
+    @GetMapping("/pipeline-status")
+    public List<DevelopmentPipelineStatus> pipelineStatus(
+            @RequestHeader(value = CONTROL_HEADER, required = false) String controlToken) {
+        authorizer.requireAuthorized(controlToken);
+        return developmentPipelines.statuses();
     }
 
     @GetMapping("/settings")

@@ -12,6 +12,8 @@ public class AutomationProperties {
     private String controlToken = "";
     private int maxAutomaticFixAttempts = 1;
     private long gitCommandTimeoutSeconds = 60;
+    private boolean developmentPollerEnabled = true;
+    private long developmentPollDelayMilliseconds = 300000;
     private List<Project> projects = new ArrayList<>();
 
     public boolean isEnabled() {
@@ -45,6 +47,11 @@ public class AutomationProperties {
     public void setGitCommandTimeoutSeconds(long gitCommandTimeoutSeconds) {
         this.gitCommandTimeoutSeconds = gitCommandTimeoutSeconds;
     }
+
+    public boolean isDevelopmentPollerEnabled() { return developmentPollerEnabled; }
+    public void setDevelopmentPollerEnabled(boolean value) { this.developmentPollerEnabled = value; }
+    public long getDevelopmentPollDelayMilliseconds() { return developmentPollDelayMilliseconds; }
+    public void setDevelopmentPollDelayMilliseconds(long value) { this.developmentPollDelayMilliseconds = value; }
 
     public List<Project> getProjects() {
         return projects;
