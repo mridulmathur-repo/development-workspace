@@ -123,6 +123,10 @@ function Catalog({ token, onBuy }) {
       <div className="page-heading split-heading">
         <div><span className="eyebrow">CURATED MOBILE COLLECTION</span><h1>Find your next phone.</h1><p>Honest choices, clear prices, delivery to your door.</p></div>
         <form className="search" onSubmit={e => { e.preventDefault(); load(search) }}><span>⌕</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search brand or model"/><button>Search</button></form>
+        <div className="price-range">
+          <label>Minimum Price <input type="number" placeholder="Min" /></label>
+          <label>Maximum Price <input type="number" placeholder="Max" /></label>
+        </div>
       </div>
       {error && <div className="error-box">{error}</div>}
       {loading ? <Loading /> : <div className="phone-grid">{phones.map((phone, index) => <PhoneCard key={phone.id} phone={phone} index={index} onBuy={() => onBuy(phone)} />)}</div>}
