@@ -11,12 +11,6 @@ Spring Boot application with Google authentication, role-based inventory managem
 
 Location: [`google-sso-demo`](google-sso-demo/)
 
-### Local File Upload Demo
-
-Spring Boot application for uploading files through a browser, storing them locally, listing uploads, and downloading stored files.
-
-Location: [`local-file-upload-demo`](local-file-upload-demo/)
-
 ## Local configuration
 
 Secrets and machine-specific data are intentionally excluded from Git. Configure required environment variables through IntelliJ run configurations. Consult each project's README for setup instructions.
